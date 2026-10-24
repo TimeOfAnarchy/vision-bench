@@ -1,3 +1,4 @@
 recursive-include tests *.py
 include docs/vlm.md
+include scripts/convert_onnx_fp16.py
 global-exclude __pycache__ *.py[cod]

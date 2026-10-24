@@ -156,6 +156,15 @@ uses original pixel orientation without an implicit EXIF rotation.
 
 ## Develop
 
+`scripts/convert_onnx_fp16.py` creates a separate derived ONNX pack, retaining
+float32 I/O, the source/derived hashes, converter versions and explicitly retained
+float32 nodes. It refuses an existing output directory and never changes the
+source pack. Conversion dependencies belong to a separate tools directory selected
+by `--tools-dir`; choose `--converter common` or `--converter onnxruntime`.
+Use `--help` for head selection and float32 operation/node exclusions. Validate
+the converted graph with real inference and precision comparison before using it;
+file size alone is not a GPU memory or numerical-accuracy measurement.
+
 ```console
 python -m pip install -e ".[dev,cpu]"
 python -m pytest
