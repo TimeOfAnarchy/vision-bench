@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "caformer-b36-fp32",
+  "preprocess": "caformer-b36",
+  "output_name": "prediction",
+  "output_kind": "probabilities",
+  "provider": "CPUExecutionProvider",
+  "thresholds": {"general": 0.39, "character": 0.47, "rating": 0.5},
+  "source": {
+    "repository": "animetimm/caformer_b36.dbv4-full",
+    "revision": "aac0699c88553d50eb673b41a81d8222936b22b2",
+    "precision": "fp32"
+  },
+  "artifacts": {
+    "model": {"path": "model.onnx", "sha256": "3ba9566baed11d3cd3dd96e4cd87f0c93a92f1a4fd62b8c2a425e0d55f41c065"},
+    "vocabulary": {"path": "selected_tags.csv", "sha256": "d99cf8cc1293bb7c7671b425d25e5f3688f6937f191ab6957de93acfefdb0e55"},
+    "preprocess": {"path": "preprocess.json", "sha256": "60c3baca177a4be5513c7bd167c60411393d8af0e0463d6bf2ba3cb43db1a74a"}
+  }
+}

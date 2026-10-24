@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "pixai-v0.9-fp32",
+  "preprocess": "pixai-v0.9",
+  "output_name": "prediction",
+  "output_kind": "probabilities",
+  "provider": "CPUExecutionProvider",
+  "thresholds": {"general": 0.30, "character": 0.85},
+  "source": {
+    "repository": "deepghs/pixai-tagger-v0.9-onnx",
+    "revision": "d8cf666911a2c3d10d586d7823259192313c7eb7",
+    "precision": "fp32"
+  },
+  "artifacts": {
+    "model": {"path": "model.onnx", "sha256": "a8d479098b5e23f253543c93df42391736abbb77c21c2efd3a513b9cda7b3657"},
+    "vocabulary": {"path": "selected_tags.csv", "sha256": "76b5dd39354a7a4d9baefb94d63b44a09a4934ee15303b7eb86c38f2128eb68a"},
+    "preprocess": {"path": "preprocess.json", "sha256": "5f8303626704053724fa7ac19cd269f57f5f843b6cca314276c8c4d48d335975"}
+  }
+}
