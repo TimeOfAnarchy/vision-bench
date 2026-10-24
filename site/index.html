@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Local image tagger and VLM benchmarks: quality, speed, precision, and reproducible offline results.">
+  <title>Vision Bench — image tagger and VLM benchmarks</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #101218; color: #f0f2f8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.65; }
+    main { width: min(100% - 40px, 940px); margin: 0 auto; padding: 60px 0 36px; }
+    .eyebrow { color: #aeb7cf; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { font-size: clamp(2.6rem, 8vw, 4.6rem); letter-spacing: -.055em; line-height: 1.08; margin: 18px 0; }
+    h2 { font-size: 1.2rem; margin: 0 0 10px; }
+    p { margin: 0 0 16px; }
+    .lead { max-width: 680px; font-size: 1.2rem; color: #bdc5d8; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0 14px; }
+    .button { display: inline-block; background: #b9c6ff; color: #141a35; padding: 11px 19px; border: 1px solid #b9c6ff; border-radius: 9px; font-weight: 650; text-decoration: none; }
+    .button.secondary { color: #e0e6ff; background: transparent; border-color: #46506e; }
+    a { color: #c0cdff; text-underline-offset: 3px; }
+    a:hover { text-decoration: underline; }
+    a:focus-visible { outline: 3px solid #f6cf81; outline-offset: 5px; }
+    .muted { color: #aeb7cf; font-size: .9rem; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 36px 0; }
+    .card, .install { background: #181d29; border: 1px solid #30384b; border-radius: 12px; padding: 22px; }
+    .card p { color: #bdc5d8; margin: 0; }
+    pre { background: #101218; border-radius: 8px; padding: 16px; overflow-x: auto; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .9rem; }
+    .notes { margin: 30px 0; padding-left: 20px; color: #bdc5d8; }
+    .notes li { margin: 8px 0; }
+    footer { border-top: 1px solid #30384b; padding-top: 20px; color: #aeb7cf; font-size: .9rem; }
+    @media (max-width: 680px) { main { padding-top: 32px; } .grid { grid-template-columns: 1fr; } .card, .install { padding: 18px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">Open source · MIT · Python 3.11+</div>
+      <h1>Vision Bench</h1>
+      <p class="lead">Compare image taggers and VLMs with saved predictions, explicit metrics, and reproducible offline results.</p>
+      <div class="actions">
+        <a class="button" href="https://huggingface.co/spaces/TimeOfAnarchy/vision-bench/resolve/main/vision_bench-0.3.1-py3-none-any.whl?download=true" target="_blank" rel="noopener">Download wheel · v0.3.1</a>
+        <a class="button secondary" href="https://huggingface.co/spaces/TimeOfAnarchy/vision-bench/resolve/main/vision_bench-0.3.1.tar.gz?download=true" target="_blank" rel="noopener">Download source &amp; examples</a>
+      </div>
+      <p class="muted">Runs on your computer. Model weights and evaluation datasets are supplied separately.</p>
+    </header>
+
+    <section class="grid" aria-label="Features">
+      <article class="card">
+        <h2>Image taggers</h2>
+        <p>Profiles for CAFormer, PixAI, WD EVA02, CL and Camie. Keep every model output and compare saved runs.</p>
+      </article>
+      <article class="card">
+        <h2>Precision &amp; timing</h2>
+        <p>Tag metrics, numerical differences, threshold flips and worker latency. Optional Windows GPU memory sampling.</p>
+      </article>
+      <article class="card">
+        <h2>VLM experiments</h2>
+        <p>Versioned image-chat tasks, response validation, repeat agreement and review exports using your own server.</p>
+      </article>
+    </section>
+
+    <section class="install" aria-labelledby="install-heading">
+      <h2 id="install-heading">Install the CPU version</h2>
+      <p>Download the wheel, then run this command in its folder inside an activated Python environment:</p>
+      <pre><code>python -m pip install "./vision_bench-0.3.1-py3-none-any.whl[cpu]"</code></pre>
+      <p class="muted">The source archive contains the README, full documentation and an offline example that generates its own images and a tiny untrained ONNX model.</p>
+    </section>
+
+    <ul class="notes">
+      <li>This page distributes the local tool. It does not run inference or use your GPU in the browser.</li>
+      <li>Incomplete source tags remain silver annotations; native rating heads are not application moderation decisions.</li>
+      <li>Real GPU and VLM measurements depend on your hardware and runtime. The generated example checks the workflow, not real model quality.</li>
+    </ul>
+
+    <footer>
+      Vision Bench 0.3.1 · TimeOfAnarchy · MIT for project code<br>
+      Third-party models and datasets retain their own terms.
+      <a href="https://huggingface.co/spaces/TimeOfAnarchy/vision-bench/tree/main" target="_blank" rel="noopener">Browse release files</a>
+    </footer>
+  </main>
+</body>
+</html>
