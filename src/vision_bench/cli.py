@@ -53,6 +53,32 @@ def parser() -> argparse.ArgumentParser:
     precision.add_argument("baseline", type=Path)
     precision.add_argument("candidate", type=Path)
     precision.add_argument("--output", type=Path, required=True)
+    vlm = modes.add_parser("vlm-run", help="Run a versioned image-chat task against an external server")
+    vlm.add_argument("--dataset", type=Path, required=True)
+    vlm.add_argument("--task", type=Path, required=True)
+    vlm.add_argument("--profile", type=Path, required=True)
+    vlm.add_argument("--endpoint", required=True, help="Full HTTP(S) chat-completions URL")
+    vlm.add_argument("--output", type=Path, default=Path("runs"))
+    vlm.add_argument("--run-id")
+    vlm.add_argument("--limit", type=int, default=8)
+    vlm.add_argument("--repeats", type=int, default=2)
+    vlm.add_argument("--retries", type=int, default=0)
+    vlm.add_argument(
+        "--timeout", type=float, default=120, help="Socket I/O timeout in seconds per HTTP attempt"
+    )
+    vlm.add_argument("--api-key-env", help="Read a bearer token from this environment variable")
+    vlm_recalc = modes.add_parser(
+        "vlm-recompute", help="Verify VLM raw responses and recompute offline metrics"
+    )
+    vlm_recalc.add_argument("run", type=Path)
+    vlm_compare = modes.add_parser("vlm-compare", help="Compare aligned VLM runs offline")
+    vlm_compare.add_argument("runs", type=Path, nargs="+")
+    vlm_compare.add_argument("--output", type=Path, required=True)
+    vlm_review = modes.add_parser(
+        "vlm-review", help="Export proposed outputs for human review, without creating gold labels"
+    )
+    vlm_review.add_argument("runs", type=Path, nargs="+")
+    vlm_review.add_argument("--output", type=Path, required=True)
     return root
 
 
@@ -83,22 +109,53 @@ def main(argv: list[str] | None = None) -> int:
                 cache_dir=args.cache_dir,
             )
             result = {"run": str(path), "state": "completed", "report": str(path / "report.html")}
-        elif args.command == "recompute":
-            from .runner import recompute
+        elif args.command == "vlm-run":
+            from .vlm_run import run_vlm
 
-            _, matches = recompute(args.run, cache_dir=args.cache_dir)
+            path = run_vlm(
+                dataset_path=args.dataset,
+                task_path=args.task,
+                profile_path=args.profile,
+                endpoint=args.endpoint,
+                output_root=args.output,
+                run_id=args.run_id,
+                limit=args.limit,
+                repeats=args.repeats,
+                retries=args.retries,
+                timeout=args.timeout,
+                api_key_env=args.api_key_env,
+            )
+            result = {"run": str(path), "state": "completed"}
+        elif args.command in {"recompute", "vlm-recompute"}:
+            if args.command == "vlm-recompute":
+                from .io import read_object
+                from .vlm_results import compute_vlm_metrics
+
+                matches = compute_vlm_metrics(args.run) == read_object(args.run / "metrics.json")
+            else:
+                from .runner import recompute
+
+                _, matches = recompute(args.run, cache_dir=args.cache_dir)
             result = {"matches": matches}
             print(json.dumps(result))
             return 0 if matches else 1
+        elif args.command == "vlm-review":
+            from .vlm_results import export_vlm_review
+
+            result = {"review": str(args.output), "samples": export_vlm_review(args.runs, args.output)}
         else:
             if args.command == "compare":
                 from .compare import compare_runs
 
                 result = compare_runs(args.runs, cache_dir=args.cache_dir)
-            else:
+            elif args.command == "precision":
                 from .precision import compare_precision
 
                 result = compare_precision(args.baseline, args.candidate, cache_dir=args.cache_dir)
+            else:
+                from .vlm_results import compare_vlm_runs
+
+                result = compare_vlm_runs(args.runs)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             with args.output.open("x", encoding="utf-8") as output:
                 json.dump(result, output, ensure_ascii=False, indent=2, allow_nan=False)

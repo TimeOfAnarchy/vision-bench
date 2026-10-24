@@ -6,7 +6,9 @@ complete predictions, then compare it with other saved runs without repeating in
 The package provides CAFormer B36 FP32/AMP FP16, PixAI v0.9, WD EVA02 v3, CL v2
 and Camie v2 ONNX profiles, full-score shards, per-category metrics, isolated
 workers, precision comparisons and optional Windows GPU memory sampling.
-VLM and dataset downloaders are not included.
+Versioned VLM image-chat tasks, strict response validation, repeat stability,
+offline comparison and human review exports are also available. See [VLM usage](docs/vlm.md).
+Dataset downloaders are not included.
 
 ## Install
 

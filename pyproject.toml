@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vision-bench"
-version = "0.2.0"
+version = "0.3.0"
 description = "Reproducible local benchmarks for image tagging models"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["numpy>=2.0,<3", "Pillow>=11,<13"]
+dependencies = ["numpy>=2.0,<3", "Pillow>=11,<13", "jsonschema>=4.23,<5"]
 
 [project.optional-dependencies]
 cpu = ["onnxruntime>=1.22,<2"]
@@ -23,7 +23,7 @@ vision-bench = "vision_bench.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-vision_bench = ["profiles/*.json"]
+vision_bench = ["profiles/*.json", "vlm_examples/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
