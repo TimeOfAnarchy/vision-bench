@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -25,16 +26,19 @@ def run(values, **kwargs):
 def test_real_worker_preserves_full_vectors_and_exact_offline_recomputation(local_inputs, monkeypatch):
     values = local_inputs
     path = run(values, run_id="first", shard_size=2, warmup=1)
-    manifest, samples, vocabulary, scores, valid, records = load_results(path)
-    assert scores.shape == (3, 3)
-    assert vocabulary["labels"] == ["shared", "hero", "extra"]
-    assert valid.tolist() == [True, True, True]
-    assert len(list(path.glob("scores-*.npz"))) == 2
-    assert (path / "report.html").is_file()
-    assert manifest["runtime"]["model"]["primary_provider"] == "CPUExecutionProvider"
+    with load_results(path) as (manifest, samples, vocabulary, scores, valid, records):
+        assert isinstance(scores, np.memmap)
+        temporary = scores.filename
+        assert scores.shape == (3, 3)
+        assert vocabulary["labels"] == ["shared", "hero", "extra"]
+        assert valid.tolist() == [True, True, True]
+        assert len(list(path.glob("scores-*.npz"))) == 2
+        assert (path / "report.html").is_file()
+        assert manifest["runtime"]["model"]["primary_provider"] == "CPUExecutionProvider"
+    assert not Path(temporary).exists()
     before = {item.name: item.read_bytes() for item in path.iterdir() if item.is_file()}
     monkeypatch.setattr(
-        subprocess, "run", lambda *a, **k: pytest.fail("Offline recomputation launched a worker")
+        subprocess, "Popen", lambda *a, **k: pytest.fail("Offline recomputation launched a worker")
     )
     metrics, matches = recompute(path)
     assert matches
@@ -47,10 +51,10 @@ def test_sample_failure_is_not_a_zero_score_and_completed_runs_cannot_be_reused(
     values = local_inputs
     (values["root"] / "image-1.png").write_bytes(b"not the original image")
     path = run(values, run_id="with-error")
-    _, _, _, scores, valid, records = load_results(path)
-    assert valid.tolist() == [True, False, True]
-    assert np.isnan(scores[1]).all()
-    assert records[1]["error"] is not None
+    with load_results(path) as (_, _, _, scores, valid, records):
+        assert valid.tolist() == [True, False, True]
+        assert np.isnan(scores[1]).all()
+        assert records[1]["error"] is not None
     assert read_object(path / "metrics.json")["outcomes"] == {"attempted": 3, "successful": 2, "failed": 1}
     with pytest.raises(BenchmarkError, match="already exists"):
         run(values, run_id="with-error")
@@ -92,21 +96,18 @@ def test_timeout_leaves_a_failed_run_without_silent_retry(local_inputs, monkeypa
 
     def timed_out(*args, **kwargs):
         calls.append(args)
-        raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
+        raise BenchmarkError("Worker exceeded its deadline")
 
-    monkeypatch.setattr(subprocess, "run", timed_out)
+    monkeypatch.setattr("vision_bench.runner.execute_worker", timed_out)
     with pytest.raises(BenchmarkError, match="deadline"):
         run(local_inputs, run_id="timeout", timeout=0.1)
     assert len(calls) == 1
     assert read_object(local_inputs["output"] / "timeout" / "run.json")["state"] == "failed"
 
 
-def test_matrix_budget_rejects_before_creating_run(local_inputs, monkeypatch):
-    import vision_bench.runner as runner
-
-    monkeypatch.setattr(runner, "MAX_SCORE_BYTES", 1)
-    with pytest.raises(BenchmarkError, match="512 MiB"):
-        run(local_inputs, run_id="oversized")
+def test_shard_budget_rejects_before_creating_run(local_inputs):
+    with pytest.raises(BenchmarkError, match="64 MiB"):
+        run(local_inputs, run_id="oversized", shard_size=10**8)
     assert not local_inputs["output"].exists()
 
 
@@ -128,10 +129,10 @@ def test_unnamed_model_outputs_survive_worker_shards_and_recompute(local_inputs)
     profile["artifacts"]["vocabulary"]["sha256"] = file_hash(values["root"] / "tags.csv")
     write_json(values["profile"], profile)
     path = run(values)
-    _, _, vocabulary, scores, valid, _ = load_results(path)
-    assert vocabulary["labels"] == ["shared", None, "extra"]
-    assert scores.shape == (3, 3)
-    assert scores[0].tolist() == pytest.approx([0.8, 0.7, 0.1])
+    with load_results(path) as (_, _, vocabulary, scores, valid, _):
+        assert vocabulary["labels"] == ["shared", None, "extra"]
+        assert scores.shape == (3, 3)
+        assert scores[0].tolist() == pytest.approx([0.8, 0.7, 0.1])
     metrics, matches = recompute(path)
     assert matches
     assert metrics["model_outputs"] == {"total": 3, "named": 2, "unnamed": 1}

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import shutil
+from contextlib import contextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 
 from .dataset import NORMALIZATION_VERSION, normalized_sample
 from .errors import BenchmarkError
 from .io import child_path, content_hash, file_hash, read_jsonl, read_object
-from .metrics import evaluate_scores, performance_summary
+from .metrics import evaluate_columns, performance_summary
 
 
 def artifact_metadata(run_dir: Path) -> list[dict]:
@@ -18,9 +21,7 @@ def artifact_metadata(run_dir: Path) -> list[dict]:
     ]
 
 
-def load_results(
-    run_dir: Path, manifest: dict | None = None
-) -> tuple[dict, list[dict], dict, np.ndarray, np.ndarray, list[dict]]:
+def _metadata(run_dir: Path, manifest: dict | None = None) -> tuple:
     run_dir = run_dir.resolve()
     manifest = manifest if manifest is not None else read_object(run_dir / "run.json")
     if manifest.get("schema_version") != 1 or manifest.get("state") != "completed":
@@ -61,6 +62,8 @@ def load_results(
     named_labels = [label for label in labels if label is not None]
     if (
         not samples
+        or len({sample["id"] for sample in samples}) != len(samples)
+        or any(set(sample["tags"]) != set(samples[0]["tags"]) for sample in samples)
         or not named_labels
         or len(labels) != len(categories)
         or len(set(named_labels)) != len(named_labels)
@@ -70,50 +73,75 @@ def load_results(
         )
     ):
         raise BenchmarkError("Invalid saved samples or vocabulary.")
-    matrices, masks, ids = [], [], []
     shards = sorted(name for name in names if name.startswith("scores-") and name.endswith(".npz"))
     if not shards:
         raise BenchmarkError("Run has no score shards.")
-    for name in shards:
-        with np.load(child_path(run_dir, name), allow_pickle=False) as payload:
-            matrix = payload["scores"]
-            valid = payload["valid"]
-            sample_ids = payload["sample_ids"]
-            if (
-                matrix.dtype != np.float32
-                or matrix.ndim != 2
-                or matrix.shape[1] != len(labels)
-                or valid.dtype != np.bool_
-                or valid.shape != (matrix.shape[0],)
-                or sample_ids.shape != valid.shape
-                or sample_ids.dtype.kind != "U"
-            ):
-                raise BenchmarkError("Invalid score shard array contract.")
-            if (
-                not np.isfinite(matrix[valid]).all()
-                or np.any((matrix[valid] < 0) | (matrix[valid] > 1))
-                or not np.isnan(matrix[~valid]).all()
-            ):
-                raise BenchmarkError("Invalid score values or failed-row mask.")
-            matrices.append(matrix)
-            masks.append(valid)
-            ids.extend(sample_ids.tolist())
-    if ids != [sample["id"] for sample in samples] or len(set(ids)) != len(ids):
-        raise BenchmarkError("Score sample order/identity differs from saved dataset.")
     records = read_jsonl(run_dir / "records.jsonl")
-    valid = np.concatenate(masks)
-    if len(records) != len(samples) or any(
-        record.get("row") != row
-        or record.get("id") != ids[row]
-        or (record.get("outcome") == "ok") != bool(valid[row])
-        for row, record in enumerate(records)
-    ):
+    if len(records) != len(samples):
         raise BenchmarkError("Prediction records and scores disagree.")
-    return manifest, samples, vocabulary, np.concatenate(matrices), valid, records
+    return manifest, samples, vocabulary, shards, records
 
 
-def compute_metrics(run_dir: Path, manifest: dict | None = None) -> dict:
-    manifest, samples, vocabulary, scores, valid, records = load_results(run_dir, manifest)
+@contextmanager
+def load_results(run_dir: Path, manifest: dict | None = None, *, cache_dir: Path | None = None):
+    """Verify one shard at a time, exposing a temporary disk-backed full matrix."""
+    run_dir = run_dir.resolve()
+    manifest, samples, vocabulary, shards, records = _metadata(run_dir, manifest)
+    shape = (len(samples), len(vocabulary["labels"]))
+    if cache_dir is not None:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix="vision-bench-scores-", dir=cache_dir) as temp:
+        if shutil.disk_usage(temp).free < shape[0] * shape[1] * 4:
+            raise BenchmarkError("Not enough temporary disk space for the score matrix.")
+        scores = np.memmap(Path(temp) / "scores.bin", dtype=np.float32, mode="w+", shape=shape)
+        valid = np.zeros(shape[0], dtype=np.bool_)
+        offset = 0
+        try:
+            for name in shards:
+                with np.load(child_path(run_dir, name), allow_pickle=False) as payload:
+                    matrix, mask, ids = payload["scores"], payload["valid"], payload["sample_ids"]
+                    if (
+                        matrix.dtype != np.float32
+                        or matrix.ndim != 2
+                        or matrix.shape[1] != shape[1]
+                        or mask.dtype != np.bool_
+                        or mask.shape != (matrix.shape[0],)
+                        or ids.shape != mask.shape
+                        or ids.dtype.kind != "U"
+                        or offset + len(matrix) > shape[0]
+                    ):
+                        raise BenchmarkError("Invalid score shard array contract.")
+                    if (
+                        not np.isfinite(matrix[mask]).all()
+                        or np.any((matrix[mask] < 0) | (matrix[mask] > 1))
+                        or not np.isnan(matrix[~mask]).all()
+                    ):
+                        raise BenchmarkError("Invalid score values or failed-row mask.")
+                    if ids.tolist() != [sample["id"] for sample in samples[offset : offset + len(matrix)]]:
+                        raise BenchmarkError("Score sample order/identity differs from saved dataset.")
+                    scores[offset : offset + len(matrix)] = matrix
+                    valid[offset : offset + len(matrix)] = mask
+                    offset += len(matrix)
+            if offset != shape[0] or any(
+                record.get("row") != row
+                or record.get("id") != samples[row]["id"]
+                or record.get("outcome") not in {"ok", "error"}
+                or (record["outcome"] == "ok") != bool(valid[row])
+                for row, record in enumerate(records)
+            ):
+                raise BenchmarkError("Prediction records and scores disagree.")
+            yield manifest, samples, vocabulary, scores, valid, records
+        finally:
+            scores._mmap.close()
+
+
+def compute_metrics(run_dir: Path, manifest: dict | None = None, *, cache_dir: Path | None = None) -> dict:
+    with load_results(run_dir, manifest, cache_dir=cache_dir) as data:
+        return _compute_metrics(run_dir, data)
+
+
+def _compute_metrics(run_dir: Path, data: tuple) -> dict:
+    manifest, samples, vocabulary, scores, valid, records = data
     profile = read_object(run_dir / "profile.json")
     categories = {}
     selected = [sample for sample, keep in zip(samples, valid, strict=True) if keep]
@@ -127,12 +155,12 @@ def compute_metrics(run_dir: Path, manifest: dict | None = None) -> dict:
         if category not in profile["thresholds"]:
             continue
         truth = [set(sample["tags"][category]) for sample in selected]
-        categories[category] = evaluate_scores(
-            scores[valid][:, columns], labels, truth, profile["thresholds"][category]
+        categories[category] = evaluate_columns(
+            scores, np.flatnonzero(valid), columns, labels, truth, profile["thresholds"][category]
         )
     return {
         "schema_version": 1,
-        "metrics_version": 1,
+        "metrics_version": 2,
         "profile_id": profile["id"],
         "model_outputs": {
             "total": len(vocabulary["labels"]),
@@ -147,6 +175,8 @@ def compute_metrics(run_dir: Path, manifest: dict | None = None) -> dict:
             "failed": int((~valid).sum()),
         },
         "categories": categories,
-        "performance": performance_summary(records, manifest["warmup"]),
+        "performance": performance_summary(
+            records, manifest["warmup"], gpu_memory=manifest["runtime"].get("gpu_memory")
+        ),
         "model_load_ms": manifest["runtime"]["model_load_ms"],
     }

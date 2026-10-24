@@ -1,21 +1,17 @@
 from __future__ import annotations
 
-import json
-import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from .adapters import load_vocabulary
+from .adapters import profile_vocabulary
 from .artifacts import artifact_metadata, compute_metrics
 from .dataset import NORMALIZATION_VERSION, load_dataset
 from .errors import BenchmarkError
 from .io import identifier, positive_int, read_object, write_json, write_jsonl
 from .profiles import load_profile
 from .report import write_report
-
-MAX_SCORE_BYTES = 512 * 1024 * 1024
+from .worker_process import execute_worker
 
 
 def utc_now() -> str:
@@ -34,6 +30,9 @@ def run_benchmark(
     shard_size: int = 16,
     warmup: int = 5,
     timeout: float = 600,
+    measure_memory: bool = False,
+    memory_interval_ms: int = 250,
+    cache_dir: Path | None = None,
 ) -> Path:
     positive_int(shard_size, name="shard_size")
     if (
@@ -46,15 +45,15 @@ def run_benchmark(
     dataset = load_dataset(dataset_path, limit=limit)
     profile = load_profile(profile_path, model_root=model_root, provider=provider)
     profile.verify()
-    vocabulary = load_vocabulary(
-        profile.artifact("vocabulary"),
-        index_column="id" if profile.config["preprocess"] == "pixai-v0.9" else None,
-    )
-    estimated_bytes = len(dataset.samples) * len(vocabulary.labels) * 4
-    if estimated_bytes > MAX_SCORE_BYTES:
-        raise BenchmarkError(
-            "Selected score matrix exceeds this version's 512 MiB evaluation limit; select a smaller dataset subset."
-        )
+    vocabulary = profile_vocabulary(profile)
+    if (
+        isinstance(memory_interval_ms, bool)
+        or not isinstance(memory_interval_ms, int)
+        or memory_interval_ms < 250
+    ):
+        raise BenchmarkError("Memory interval must be at least 250 ms.")
+    if shard_size * len(vocabulary.labels) * 4 > 64 * 1024 * 1024:
+        raise BenchmarkError("One recording shard exceeds 64 MiB; reduce shard-size.")
     run_id = identifier(
         run_id or f"{profile.profile_id[:80]}-{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid4().hex[:8]}"
     )
@@ -96,32 +95,15 @@ def run_benchmark(
                 "model_root": str(profile.model_root),
                 "image_root": str(dataset.image_root),
                 "shard_size": shard_size,
+                "start_token": uuid4().hex,
             },
         )
-        with (run_dir / "worker.log").open("w", encoding="utf-8") as log:
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "vision_bench._worker", str(run_dir)],
-                    stdout=subprocess.PIPE,
-                    stderr=log,
-                    text=True,
-                    encoding="utf-8",
-                    timeout=timeout,
-                    check=False,
-                )
-            except subprocess.TimeoutExpired as exc:
-                raise BenchmarkError(
-                    f"Worker exceeded its {timeout:g}s deadline; run remains diagnostic."
-                ) from exc
-        try:
-            response = json.loads(result.stdout)
-        except ValueError as exc:
-            raise BenchmarkError("Worker returned invalid JSON; inspect worker.log.") from exc
-        if result.returncode or response.get("ok") is not True:
-            raise BenchmarkError(f"Worker failed: {response.get('error', response)}")
-        manifest.update(state="completed", runtime=response["runtime"])
+        runtime = execute_worker(
+            run_dir, timeout=timeout, measure_memory=measure_memory, interval_ms=memory_interval_ms
+        )
+        manifest.update(state="completed", runtime=runtime)
         manifest["artifacts"] = artifact_metadata(run_dir)
-        metrics = compute_metrics(run_dir, manifest)
+        metrics = compute_metrics(run_dir, manifest, cache_dir=cache_dir)
         if metrics["outcomes"]["successful"] == 0:
             raise BenchmarkError("No successful predictions; inspect records.jsonl.")
         write_json(run_dir / "metrics.json", metrics)
@@ -137,6 +119,6 @@ def run_benchmark(
         raise
 
 
-def recompute(run_dir: Path) -> tuple[dict, bool]:
-    metrics = compute_metrics(run_dir)
+def recompute(run_dir: Path, *, cache_dir: Path | None = None) -> tuple[dict, bool]:
+    metrics = compute_metrics(run_dir, cache_dir=cache_dir)
     return metrics, metrics == read_object(run_dir / "metrics.json")

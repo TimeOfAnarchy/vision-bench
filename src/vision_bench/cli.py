@@ -14,6 +14,7 @@ def parser() -> argparse.ArgumentParser:
         prog="vision-bench", description="Independent local image tagger benchmarks"
     )
     root.add_argument("--version", action="version", version=__version__)
+    root.add_argument("--cache-dir", type=Path, help="Directory for temporary disk-backed score matrices")
     modes = root.add_subparsers(dest="command", required=True)
     validate = modes.add_parser("validate", help="Verify dataset structure and image hashes")
     validate.add_argument("--dataset", type=Path, required=True)
@@ -31,6 +32,12 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--shard-size", type=int, default=16)
     run.add_argument("--warmup", type=int, default=5)
     run.add_argument("--timeout", type=float, default=600, help="Total worker deadline in seconds")
+    run.add_argument(
+        "--measure-memory",
+        action="store_true",
+        help="Sample the actual worker's WDDM process memory on Windows",
+    )
+    run.add_argument("--memory-interval-ms", type=int, default=250)
     recalc = modes.add_parser(
         "recompute", help="Verify artifacts and compare recomputed metrics without inference"
     )
@@ -40,6 +47,12 @@ def parser() -> argparse.ArgumentParser:
     compare.add_argument(
         "--output", type=Path, required=True, help="New JSON report; existing files are never replaced"
     )
+    precision = modes.add_parser(
+        "precision", help="Compare two precision/export variants at identical operating points"
+    )
+    precision.add_argument("baseline", type=Path)
+    precision.add_argument("candidate", type=Path)
+    precision.add_argument("--output", type=Path, required=True)
     return root
 
 
@@ -65,19 +78,27 @@ def main(argv: list[str] | None = None) -> int:
                 shard_size=args.shard_size,
                 warmup=args.warmup,
                 timeout=args.timeout,
+                measure_memory=args.measure_memory,
+                memory_interval_ms=args.memory_interval_ms,
+                cache_dir=args.cache_dir,
             )
             result = {"run": str(path), "state": "completed", "report": str(path / "report.html")}
         elif args.command == "recompute":
             from .runner import recompute
 
-            _, matches = recompute(args.run)
+            _, matches = recompute(args.run, cache_dir=args.cache_dir)
             result = {"matches": matches}
             print(json.dumps(result))
             return 0 if matches else 1
         else:
-            from .compare import compare_runs
+            if args.command == "compare":
+                from .compare import compare_runs
 
-            result = compare_runs(args.runs)
+                result = compare_runs(args.runs, cache_dir=args.cache_dir)
+            else:
+                from .precision import compare_precision
+
+                result = compare_precision(args.baseline, args.candidate, cache_dir=args.cache_dir)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             with args.output.open("x", encoding="utf-8") as output:
                 json.dump(result, output, ensure_ascii=False, indent=2, allow_nan=False)

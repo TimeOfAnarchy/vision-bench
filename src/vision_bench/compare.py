@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 from pathlib import Path
 
 import numpy as np
@@ -7,13 +8,18 @@ import numpy as np
 from .artifacts import load_results
 from .errors import BenchmarkError
 from .io import content_hash, read_object
-from .metrics import evaluate_scores
+from .metrics import evaluate_columns
 
 
-def compare_runs(paths: list[Path]) -> dict:
+def compare_runs(paths: list[Path], *, cache_dir: Path | None = None) -> dict:
     if len(paths) < 2 or len({path.resolve() for path in paths}) != len(paths):
         raise BenchmarkError("Comparison needs at least two distinct runs.")
-    runs = [load_results(path) for path in paths]
+    with ExitStack() as stack:
+        runs = [stack.enter_context(load_results(path, cache_dir=cache_dir)) for path in paths]
+        return _compare(paths, runs)
+
+
+def _compare(paths: list[Path], runs: list[tuple]) -> dict:
     fingerprint = runs[0][0]["dataset"]["fingerprint"]
     if any(run[0]["dataset"]["fingerprint"] != fingerprint for run in runs):
         raise BenchmarkError("Runs use different dataset subsets, annotation versions, or ordering.")
@@ -45,8 +51,10 @@ def compare_runs(paths: list[Path]) -> dict:
             truth = [
                 set(sample["tags"][category]) for sample, keep in zip(run[1], paired, strict=True) if keep
             ]
-            values = evaluate_scores(
-                run[3][paired][:, [lookup[label] for label in labels]],
+            values = evaluate_columns(
+                run[3],
+                np.flatnonzero(paired),
+                [lookup[label] for label in labels],
                 labels,
                 truth,
                 profile["thresholds"][category],

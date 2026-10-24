@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "camie-v2",
+  "preprocess": "camie-v2",
+  "output_name": "refined_predictions",
+  "output_kind": "logits",
+  "provider": "CPUExecutionProvider",
+  "thresholds": {
+    "general": 0.492,
+    "character": 0.492,
+    "copyright": 0.492
+  },
+  "source": {
+    "repository": "Camais03/camie-tagger-v2",
+    "revision": "7d40c1b85b86ab4f607b2caf26b1b50c99db743e",
+    "precision": "onnx-fp32"
+  },
+  "artifacts": {
+    "model": {
+      "path": "camie-tagger-v2.onnx",
+      "sha256": "ab0aaf253e3d546090001bec9bebc776c354ab6800f442ab9167af87b4a953ac"
+    },
+    "vocabulary": {
+      "path": "camie-tagger-v2-metadata.json",
+      "sha256": "de9f962eb0fd86b7e30d0af4e8c7990205200d70e955d8ecae60f87d14eae66b"
+    }
+  }
+}

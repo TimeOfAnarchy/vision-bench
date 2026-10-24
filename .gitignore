@@ -13,6 +13,7 @@ __pycache__/
 build/
 dist/
 runs/
+cache/
 datasets/
 models/
 *.onnx
@@ -23,6 +24,7 @@ models/
 *.ckpt
 *.gguf
 *.npz
+*.bin
 *.log
 .coverage
 .coverage.*

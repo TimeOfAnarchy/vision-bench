@@ -7,8 +7,9 @@ from pathlib import Path
 
 from .errors import BenchmarkError
 from .io import child_path, content_hash, file_hash, identifier, read_object, sha256_value
+from .preprocess import INPUT_SHAPES
 
-PREPROCESS_MODES = {"pixai-v0.9", "caformer-b36", "wd-v3", "pixai-v1.0"}
+PREPROCESS_MODES = set(INPUT_SHAPES)
 PROVIDERS = {"CPUExecutionProvider", "DmlExecutionProvider", "CUDAExecutionProvider"}
 
 
@@ -74,6 +75,18 @@ def load_profile(path: str | Path, *, model_root: Path, provider: str | None = N
     artifacts = config.get("artifacts")
     if not isinstance(artifacts, dict) or not {"model", "vocabulary"} <= artifacts.keys():
         raise BenchmarkError("Profile needs model and vocabulary artifacts.")
+    if config["preprocess"] == "cl-v2" and not {"metadata", "model_data"} <= artifacts.keys():
+        raise BenchmarkError("CL profiles must pin metadata and external model_data.")
+    heads = {
+        "cl-v2": ("logits", "logits"),
+        "camie-v2": ("refined_predictions", "logits"),
+        "wd-v3": ("output", "probabilities"),
+    }
+    if (
+        config["preprocess"] in heads
+        and (config["output_name"], config["output_kind"]) != heads[config["preprocess"]]
+    ):
+        raise BenchmarkError("Output head/semantics do not match the model contract.")
     for role, artifact in artifacts.items():
         identifier(role)
         if not isinstance(artifact, dict):

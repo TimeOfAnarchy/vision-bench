@@ -98,6 +98,11 @@ def execute(run_dir: Path) -> dict:
 def main() -> int:
     run_dir = Path(sys.argv[1]).resolve()
     try:
+        request = read_object(run_dir / "request.json")
+        with (run_dir / "worker.ready.json").open("x", encoding="utf-8") as ready:
+            ready.write(canonical_json({"pid": os.getpid(), "start_token": request["start_token"]}))
+        if sys.stdin.readline().strip() != request["start_token"]:
+            raise ValueError("Parent did not authorize the worker start.")
         runtime = execute(run_dir)
         print(canonical_json({"ok": True, "runtime": runtime}))
         return 0

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "cl-v2",
+  "preprocess": "cl-v2",
+  "output_name": "logits",
+  "output_kind": "logits",
+  "provider": "CPUExecutionProvider",
+  "thresholds": {
+    "general": 0.55,
+    "character": 0.55,
+    "copyright": 0.55
+  },
+  "source": {
+    "repository": "cella110n/cl_tagger_v2",
+    "revision": "b57909b8e9c63f71e208a26473e7aabdf45ed6b6",
+    "precision": "onnx"
+  },
+  "artifacts": {
+    "model": {
+      "path": "model.onnx",
+      "sha256": "9cff358bebe593f7187969e952f5338b7258506856bdccc9f6afb391384130e6"
+    },
+    "model_data": {
+      "path": "model.onnx.data",
+      "sha256": "281ba888b39c6c9a4009c241d278f8ea87bfb56fed68241a94c588b93cb54e07"
+    },
+    "metadata": {
+      "path": "model_metadata.json",
+      "sha256": "a8284438cc2f393a4df226172624d4ca2111a05b0e0f9deb9ebf60f4809f332a"
+    },
+    "vocabulary": {
+      "path": "model_vocabulary.json",
+      "sha256": "638f2979e7d711f5403ddb1bbe5054004377239b7a5062b1ea95c4abb1479551"
+    }
+  }
+}

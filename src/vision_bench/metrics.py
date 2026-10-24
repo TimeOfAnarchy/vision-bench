@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from .errors import BenchmarkError
+from .io import positive_int
 
 
 def ratio(numerator: int | float, denominator: int | float) -> float:
@@ -33,34 +34,71 @@ def average_precision(truth: np.ndarray, scores: np.ndarray) -> float | None:
 
 
 def evaluate_scores(
-    scores: np.ndarray, labels: list[str], truth_sets: list[set[str]], threshold: float
+    scores: np.ndarray,
+    labels: list[str],
+    truth_sets: list[set[str]],
+    threshold: float,
+    *,
+    block_size: int = 128,
 ) -> dict:
-    if scores.shape != (len(truth_sets), len(labels)) or not np.isfinite(scores).all():
-        raise BenchmarkError("Invalid finite score matrix for metric calculation.")
+    if scores.shape != (len(truth_sets), len(labels)):
+        raise BenchmarkError("Score matrix shape differs from labels/annotations.")
+    return evaluate_columns(
+        scores,
+        np.arange(scores.shape[0]),
+        list(range(len(labels))),
+        labels,
+        truth_sets,
+        threshold,
+        block_size=block_size,
+    )
+
+
+def evaluate_columns(
+    scores: np.ndarray,
+    rows: np.ndarray,
+    columns: list[int],
+    labels: list[str],
+    truth_sets: list[set[str]],
+    threshold: float,
+    *,
+    block_size: int = 128,
+) -> dict:
+    """Exact metrics with at most rows x block_size score/truth work arrays."""
+    positive_int(block_size, name="metric block size")
+    if len(rows) != len(truth_sets) or len(columns) != len(labels):
+        raise BenchmarkError("Metric selection and annotations disagree.")
     if len(set(labels)) != len(labels) or not 0 <= threshold <= 1:
         raise BenchmarkError("Invalid vocabulary or metric threshold.")
     vocabulary = set(labels)
-    truth = np.asarray(
-        [[label in values for label in labels] for values in truth_sets], dtype=np.bool_
-    ).reshape(len(truth_sets), len(labels))
-    predicted = scores >= threshold
-    tp = np.count_nonzero(truth & predicted, axis=0)
-    fp = np.count_nonzero(~truth & predicted, axis=0)
-    fn = np.count_nonzero(truth & ~predicted, axis=0)
-    support = truth.sum(axis=0)
-    supported = support > 0
+    tp, fp, fn, support = (np.zeros(len(labels), dtype=np.int64) for _ in range(4))
     per_label, ap_values = [], []
-    for index in np.flatnonzero(supported):
-        ap = average_precision(truth[:, index], scores[:, index])
-        ap_values.append(ap)
-        per_label.append(
-            {
-                "label": labels[index],
-                "support": int(support[index]),
-                "ap": ap,
-                **counts_metrics(int(tp[index]), int(fp[index]), int(fn[index])),
-            }
-        )
+    for start in range(0, len(labels), block_size):
+        stop = min(start + block_size, len(labels))
+        block = scores[np.ix_(rows, columns[start:stop])]
+        if not np.isfinite(block).all() or np.any((block < 0) | (block > 1)):
+            raise BenchmarkError("Invalid probabilities in metric block.")
+        truth = np.asarray(
+            [[label in values for label in labels[start:stop]] for values in truth_sets], dtype=np.bool_
+        ).reshape(len(rows), stop - start)
+        predicted = block >= threshold
+        tp[start:stop] = np.count_nonzero(truth & predicted, axis=0)
+        fp[start:stop] = np.count_nonzero(~truth & predicted, axis=0)
+        fn[start:stop] = np.count_nonzero(truth & ~predicted, axis=0)
+        support[start:stop] = truth.sum(axis=0)
+        for offset in np.flatnonzero(support[start:stop]):
+            index = start + int(offset)
+            ap = average_precision(truth[:, offset], block[:, offset])
+            ap_values.append(ap)
+            per_label.append(
+                {
+                    "label": labels[index],
+                    "support": int(support[index]),
+                    "ap": ap,
+                    **counts_metrics(int(tp[index]), int(fp[index]), int(fn[index])),
+                }
+            )
+    supported = support > 0
     per_label.sort(key=lambda value: (-value["support"], value["label"]))
     total_occurrences = sum(len(values) for values in truth_sets)
     covered_occurrences = sum(len(values & vocabulary) for values in truth_sets)
@@ -90,7 +128,7 @@ def evaluate_scores(
     }
 
 
-def performance_summary(records: list[dict], warmup: int) -> dict:
+def performance_summary(records: list[dict], warmup: int, *, gpu_memory: dict | None = None) -> dict:
     successful = [record for record in records if record["outcome"] == "ok"]
     warm = [record for record in successful if record["row"] >= warmup]
 
@@ -110,5 +148,5 @@ def performance_summary(records: list[dict], warmup: int) -> dict:
         "warm": timing(warm),
         "warmup_excluded_rows": warmup,
         "scope": "decode_preprocess_inference",
-        "gpu_memory": {"status": "unavailable", "reason": "collector_not_implemented"},
+        "gpu_memory": gpu_memory or {"status": "unavailable", "reason": "not_recorded"},
     }

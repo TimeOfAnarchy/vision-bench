@@ -3,10 +3,10 @@
 Local, reproducible comparisons of image tagging models. Run one model, keep its
 complete predictions, then compare it with other saved runs without repeating inference.
 
-The first release provides CAFormer B36 and PixAI v0.9 ONNX profiles, full-score
-shards, per-category metrics, isolated workers, JSON comparison and a local HTML
-report. VLM, resource collectors and dataset downloaders are not included in
-this release.
+The package provides CAFormer B36 FP32/AMP FP16, PixAI v0.9, WD EVA02 v3, CL v2
+and Camie v2 ONNX profiles, full-score shards, per-category metrics, isolated
+workers, precision comparisons and optional Windows GPU memory sampling.
+VLM and dataset downloaders are not included.
 
 ## Install
 
@@ -29,7 +29,10 @@ that a specific GPU/provider combination has been tested.
 Use existing local images and model files. Vision Bench does not download or
 redistribute model weights or datasets. Model packs for the bundled profiles
 must match the recorded artifact hashes. A pack contains `model.onnx`,
-`selected_tags.csv` and `preprocess.json`.
+`selected_tags.csv` and, where declared, `preprocess.json`. CL uses
+`model_vocabulary.json`, `model_metadata.json` and external `model.onnx.data`
+weights. Camie uses `camie-tagger-v2.onnx` and `camie-tagger-v2-metadata.json`.
+Every required artifact is hash-verified, including external CL weights.
 
 Create `samples.jsonl`, one object per image:
 
@@ -60,6 +63,8 @@ Use `human` only for human-reviewed labels; `silver` means incomplete source lab
 vision-bench validate --dataset ./dataset.json
 vision-bench run --dataset ./dataset.json --profile builtin:caformer-b36 --model-root ./caformer-pack --output ./runs
 vision-bench run --dataset ./dataset.json --profile builtin:pixai-v0.9 --model-root ./pixai-pack --output ./runs
+# Other profiles: builtin:wd-eva02-v3, builtin:cl-v2, builtin:camie-v2,
+# builtin:caformer-b36-amp-fp16
 ```
 
 Add `--provider DmlExecutionProvider` or `--provider CUDAExecutionProvider` to
@@ -103,12 +108,47 @@ profile inputs, not fitted on the evaluation set.
 
 Latency includes decoding, preprocessing and inference, excludes integrity
 checks and model loading. The first five selected rows are excluded from the
-warm summary by default. GPU/RAM sampling is not implemented; reports explicitly
-mark GPU memory unavailable. No external service is started or stopped.
+warm summary by default. GPU memory is unavailable unless sampling is requested
+and produces sufficient observations. No external service is started or stopped.
 
-The first evaluator limits each selected score matrix to 512 MiB before starting
-inference. Shards bound recording buffers, but metric computation currently
-loads the selected matrix into RAM and needs additional working memory.
+Scores are loaded one shard at a time into temporary disk-backed matrices;
+metrics use bounded column blocks. Recording shards are limited to 64 MiB of score data. Temporary disk
+space is required for one full float32 matrix per open run; precision comparison
+also uses a temporary error matrix. Set a suitable cache location when needed:
+
+```console
+vision-bench --cache-dir ./cache compare ./runs/model-a ./runs/model-b --output ./comparison.json
+vision-bench --cache-dir ./cache precision ./runs/fp32 ./runs/fp16 --output ./precision.json
+```
+
+Precision pairs require the same pinned upstream repository/revision, exact
+indexed vocabulary, preprocessing implementation, provider and thresholds.
+Both runs must have the same successful sample mask; failed outcomes remain visible.
+The report includes exact absolute-error percentiles, threshold flips, affected
+samples and paired quality metrics. Numeric errors include anonymous outputs;
+tag metrics and threshold decisions exclude them. A close aggregate F1 does not
+prove decision-by-decision equivalence. No thresholds are optimized on this set.
+The AMP FP16 profile runs an exported mixed-precision ONNX graph, not PyTorch.
+
+```console
+vision-bench run --dataset ./dataset.json --profile builtin:caformer-b36 --model-root ./caformer-pack --provider DmlExecutionProvider --measure-memory
+```
+
+On Windows, optional [PDH process counters](https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhgetformattedcounterarrayw)
+sample the worker's dedicated/shared GPU memory. The actual worker reports its PID
+before model loading; a virtual-environment launcher PID is recorded separately.
+Raw samples are stored in `memory.jsonl`. The default interval is 250 ms; a shorter
+or insufficient sampling span is not reported as a memory high-water estimate.
+Unavailable/failed counters remain unavailable, never fake zero measurements.
+Observed high water is a sampled process metric, not an instantaneous allocator
+peak, and includes model loading plus inference. RAM collection is not implemented.
+
+CUDA requires compatible CUDA/cuDNN DLLs, which can be loaded from NVIDIA
+site packages. An optional `VISION_BENCH_CUDNN_DIR` selects
+an explicit cuDNN directory in the worker environment; it never changes global
+settings. See [ONNX Runtime DLL loading](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#preload-dlls).
+Use separate runtime environments for provider-specific measurements.
+
 Static single-frame images only, up to 12 MP / 8192 pixels per edge. Preprocessing
 uses original pixel orientation without an implicit EXIF rotation.
 
