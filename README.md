@@ -10,6 +10,14 @@ Versioned VLM image-chat tasks, strict response validation, repeat stability,
 offline comparison and human review exports are also available. See [VLM usage](docs/vlm.md).
 Dataset downloaders are not included.
 
+## Try it without model downloads
+
+The [offline CPU example](examples/README.md) generates four synthetic images and
+an untrained ONNX color graph, then runs validation, inference, reporting and exact
+offline recomputation. It requires no external datasets, weights or services.
+It verifies the workflow; its toy results do not measure real tagger quality.
+See [reproducibility and measurement boundaries](docs/reproducibility.md).
+
 ## Install
 
 Python 3.11+ is required. Choose **one** runtime extra per environment:
@@ -175,3 +183,20 @@ python -m build
 The tests use tiny generated models and local temporary images. They do not
 download weights or invoke a real GPU. Real model checks are separate manual runs.
 No model weights or evaluation images are included in the package.
+
+The CPU workflow installs a built wheel in a fresh environment and tests it
+outside the checkout on Linux/Windows. To run the same package check locally:
+
+```console
+python -m build --outdir .local/package-dist
+python scripts/check_distribution.py --dist .local/package-dist --work .local/package-check
+```
+
+Choose new output directories for repeated checks. GPU providers and real VLM
+servers require separate manual runs; CPU CI does not establish their performance.
+
+## License
+
+Code, documentation and generated example inputs are licensed under [MIT](LICENSE).
+Model weights and third-party datasets keep their own terms; they are not included
+or relicensed by this project.
