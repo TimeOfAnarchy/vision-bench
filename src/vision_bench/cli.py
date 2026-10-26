@@ -53,6 +53,19 @@ def parser() -> argparse.ArgumentParser:
     precision.add_argument("baseline", type=Path)
     precision.add_argument("candidate", type=Path)
     precision.add_argument("--output", type=Path, required=True)
+    publication = modes.add_parser(
+        "export-report", help="Export a portable public tagger comparison without images or local paths"
+    )
+    publication.add_argument("runs", type=Path, nargs="+")
+    publication.add_argument("--output", type=Path, required=True)
+    publication.add_argument("--title", required=True)
+    publication.add_argument("--dataset-url")
+    publication.add_argument("--dataset-description", default="")
+    publication.add_argument(
+        "--hardware-note",
+        default="",
+        help="Explicit author annotation for historical runs; not measured hardware",
+    )
     vlm = modes.add_parser("vlm-run", help="Run a versioned image-chat task against an external server")
     vlm.add_argument("--dataset", type=Path, required=True)
     vlm.add_argument("--task", type=Path, required=True)
@@ -139,6 +152,19 @@ def main(argv: list[str] | None = None) -> int:
             result = {"matches": matches}
             print(json.dumps(result))
             return 0 if matches else 1
+        elif args.command == "export-report":
+            from .public_report import export_report
+
+            path = export_report(
+                args.runs,
+                output=args.output,
+                title=args.title,
+                dataset_url=args.dataset_url,
+                dataset_description=args.dataset_description,
+                hardware_note=args.hardware_note,
+                cache_dir=args.cache_dir,
+            )
+            result = {"report": str(path / "index.html"), "directory": str(path)}
         elif args.command == "vlm-review":
             from .vlm_results import export_vlm_review
 

@@ -11,6 +11,7 @@ import numpy as np
 
 from . import __version__
 from .adapters import OnnxTagger
+from .environment import capture_environment
 from .io import canonical_json, file_hash, read_jsonl, read_object, write_json
 from .preprocess import PREPROCESS_VERSION
 from .profiles import load_profile
@@ -89,6 +90,7 @@ def execute(run_dir: Path) -> dict:
         "platform": platform.platform(),
         "model_load_ms": load_ms,
         "libraries": versions,
+        "environment": capture_environment(),
         "model": model_info,
         "preprocess_version": PREPROCESS_VERSION,
         "preprocess_code_sha256": file_hash(Path(__file__).with_name("preprocess.py")),

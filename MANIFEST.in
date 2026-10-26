@@ -1,6 +1,7 @@
 recursive-include tests *.py
 include docs/vlm.md
 include docs/reproducibility.md
+include docs/publishing-results.md
 include examples/README.md
 include examples/create_demo.py
 include scripts/convert_onnx_fp16.py

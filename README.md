@@ -84,6 +84,10 @@ prefix and fingerprints that exact subset. No large run starts implicitly.
 
 ## Inspect and compare
 
+To turn saved tagger runs into a standalone HTML/Markdown/JSON experiment report
+with model, dataset, software and hardware provenance, see
+[publishing results](docs/publishing-results.md). Exporting does not publish anything.
+
 Each successful run contains `run.json`, `profile.json`, `samples.jsonl`,
 `vocabulary.json`, `records.jsonl`, `scores-*.npz`, `metrics.json` and `report.html`.
 The vocabulary preserves every model output, including categories not evaluated
