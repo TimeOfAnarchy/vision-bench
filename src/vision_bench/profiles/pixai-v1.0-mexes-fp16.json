@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "pixai-v1.0-mexes-fp16",
+  "preprocess": "pixai-v1.0",
+  "output_name": "prediction",
+  "output_kind": "probabilities",
+  "provider": "CPUExecutionProvider",
+  "thresholds": {"general": 0.17, "style": 0.15, "copyright": 0.24, "character": 0.27, "meta": 0.17, "rating": 0.41},
+  "source": {
+    "repository": "Mexes/pixai-tagger-v1.0-onnx-fp32-fp16-int8",
+    "revision": "0800778563144a0e6fdf41ddadd84aae3cb0dbcf",
+    "precision": "fp16"
+  },
+  "artifacts": {
+    "model": {"path": "model_fp16.onnx", "sha256": "cd668e6760bb58ec400ce1b0286e5c9133f83b543caac6a378406b7d56f8c303"},
+    "vocabulary": {"path": "selected_tags.csv", "sha256": "a9455cbf0a910d4a3890739f2f70bd986278f4594285ef1049121a03896e2a6d"},
+    "preprocess": {"path": "preprocess.json", "sha256": "b6cc89f3dbeee8e97666934d812a6a6bcebe81ae4eff763da9f58f4c52cd6ed4"}
+  }
+}

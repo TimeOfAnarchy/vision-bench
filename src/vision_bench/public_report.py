@@ -158,6 +158,15 @@ def export_report(
                         model,
                         (
                             "onnxruntime",
+                            "backend",
+                            "torch",
+                            "timm",
+                            "cuda",
+                            "cudnn",
+                            "precision",
+                            "weights_dtype",
+                            "strict_state_dict",
+                            "tf32",
                             "primary_provider",
                             "providers",
                             "input_shape",
@@ -319,7 +328,7 @@ def render(data: dict) -> tuple[str, str]:
     )
     section(
         "Hardware and software",
-        ["Model", "CPU", "RAM GiB", "NVIDIA inventory / driver", "Provider", "ORT", "Python", "Vision Bench"],
+        ["Model", "CPU", "RAM GiB", "NVIDIA inventory / driver", "Provider", "Runtime", "Python", "Vision Bench"],
         [
             [
                 r["profile_id"],
@@ -333,7 +342,9 @@ def render(data: dict) -> tuple[str, str]:
                 )
                 or "not recorded",
                 r["runtime"]["model"].get("primary_provider", "not recorded"),
-                r["runtime"]["model"].get("onnxruntime", "not recorded"),
+                f"PyTorch {r['runtime']['model']['torch']}"
+                if "torch" in r["runtime"]["model"]
+                else f"ONNX Runtime {r['runtime']['model'].get('onnxruntime', 'not recorded')}",
                 r["runtime"].get("python", "not recorded").split(" ")[0],
                 r["runtime"]["libraries"].get("vision-bench", "not recorded"),
             ]

@@ -26,7 +26,12 @@ def execute(run_dir: Path) -> dict:
     profile = load_profile(run_dir / "profile.json", model_root=Path(request["model_root"]))
     profile.verify()
     started = perf_counter()
-    adapter = OnnxTagger(profile)
+    if profile.config.get("backend", "onnx") == "torch-caformer":
+        from .torch_adapter import TorchCAFormer
+
+        adapter = TorchCAFormer(profile)
+    else:
+        adapter = OnnxTagger(profile)
     model_info = adapter.load()
     load_ms = (perf_counter() - started) * 1000
     samples = read_jsonl(run_dir / "samples.jsonl")

@@ -26,7 +26,8 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--output", type=Path, default=Path("runs"))
     run.add_argument("--run-id")
     run.add_argument(
-        "--provider", choices=["CPUExecutionProvider", "DmlExecutionProvider", "CUDAExecutionProvider"]
+        "--provider",
+        choices=["CPUExecutionProvider", "DmlExecutionProvider", "CUDAExecutionProvider", "TorchCUDA"],
     )
     run.add_argument("--limit", type=int)
     run.add_argument("--shard-size", type=int, default=16)

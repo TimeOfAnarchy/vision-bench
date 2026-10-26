@@ -12,6 +12,9 @@ PREPROCESS_VERSION = "image-taggers-v1"
 INPUT_SHAPES = {
     "pixai-v0.9": (3, 448, 448),
     "caformer-b36": (3, 384, 384),
+    "caformer-b36-direct-384": (3, 384, 384),
+    "caformer-b36-direct-512": (3, 512, 512),
+    "caformer-b36-direct-640": (3, 640, 640),
     "wd-v3": (448, 448, 3),
     "pixai-v1.0": (3, 1008, 1008),
     "cl-v2": (3, 384, 384),
@@ -64,8 +67,11 @@ def preprocess_image(image: Image.Image, mode: str) -> np.ndarray:
         canvas.paste(rgb, ((side - rgb.width) // 2, (side - rgb.height) // 2))
         array = np.asarray(canvas.resize((448, 448), Image.Resampling.BICUBIC), dtype=np.float32)
         return np.ascontiguousarray(array[None, :, :, ::-1])
-    side = 1008 if mode == "pixai-v1.0" else 512
-    interpolation = Image.Resampling.BICUBIC if mode == "pixai-v1.0" else Image.Resampling.BILINEAR
+    direct_caformer = mode.startswith("caformer-b36-direct-")
+    side = INPUT_SHAPES[mode][-1] if direct_caformer else 1008 if mode == "pixai-v1.0" else 512
+    interpolation = (
+        Image.Resampling.BICUBIC if mode == "pixai-v1.0" or direct_caformer else Image.Resampling.BILINEAR
+    )
     ratio = side / max(rgb.size)
     resized = rgb.resize((max(1, round(rgb.width * ratio)), max(1, round(rgb.height * ratio))), interpolation)
     canvas = Image.new("RGB", (side, side), "black" if mode == "pixai-v1.0" else "white")

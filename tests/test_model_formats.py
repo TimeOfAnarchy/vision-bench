@@ -122,8 +122,58 @@ def test_cl_bicubic_and_camie_padding_follow_distinct_preprocessing_contracts():
     )
 
 
-def test_all_six_builtin_profiles_resolve_from_package_resources(tmp_path):
-    for name in ("caformer-b36", "pixai-v0.9", "wd-eva02-v3", "cl-v2", "camie-v2", "caformer-b36-amp-fp16"):
+def test_all_builtin_profiles_resolve_from_package_resources(tmp_path):
+    for name in (
+        "caformer-b36",
+        "pixai-v0.9",
+        "pixai-v1.0-mexes-fp16",
+        "wd-eva02-v3",
+        "cl-v2",
+        "camie-v2",
+        "caformer-b36-amp-fp16",
+    ):
         profile = load_profile(f"builtin:{name}", model_root=tmp_path)
         assert profile.config["source"]["revision"]
         json.dumps(profile.config, allow_nan=False)
+
+
+def test_pixai_v1_vocabulary_preserves_style_and_anonymous_indices(tmp_path):
+    profile = load_profile("builtin:pixai-v1.0-mexes-fp16", model_root=tmp_path)
+    path = tmp_path / "selected_tags.csv"
+    path.write_text("tag_id,name,category\n0,known,0\n1,watercolor,1\n2,,\n3,hero,4\n", encoding="utf-8")
+    vocabulary = profile_vocabulary(profile)
+    assert vocabulary.labels == ("known", "watercolor", None, "hero")
+    assert vocabulary.categories == ("general", "style", "unnamed", "character")
+    path.write_text("tag_id,name,category\n1,known,0\n", encoding="utf-8")
+    with pytest.raises(BenchmarkError, match="ordered"):
+        profile_vocabulary(profile)
+
+
+def test_pixai_v1_executes_worker_with_native_probabilities(local_inputs):
+    import onnx
+
+    root = local_inputs["root"]
+    model = onnx.load(root / "model.onnx")
+    model.graph.input[0].name = "input"
+    for dimension in (2, 3):
+        model.graph.input[0].type.tensor_type.shape.dim[dimension].dim_value = 1008
+    onnx.save(model, root / "model.onnx")
+    (root / "tags.csv").write_text(
+        "tag_id,name,category\n0,shared,0\n1,hero,4\n2,watercolor,1\n", encoding="utf-8"
+    )
+    profile = read_object(local_inputs["profile"])
+    profile.update(id="pixai-v1-test", preprocess="pixai-v1.0")
+    for artifact in profile["artifacts"].values():
+        artifact["sha256"] = file_hash(root / artifact["path"])
+    write_json(local_inputs["profile"], profile)
+    path = run_benchmark(
+        dataset_path=local_inputs["dataset"],
+        profile_path=local_inputs["profile"],
+        model_root=root,
+        output_root=local_inputs["output"],
+    )
+    with load_results(path) as (_, _, vocabulary, scores, valid, _):
+        assert vocabulary["categories"] == ["general", "character", "style"]
+        assert scores[0].tolist() == pytest.approx([0.8, 0.7, 0.1])
+        assert valid.all()
+    assert recompute(path)[1]

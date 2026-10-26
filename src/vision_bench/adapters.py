@@ -32,10 +32,13 @@ class Vocabulary:
         }
 
 
-def load_vocabulary(path: Path, *, index_column: str | None = None) -> Vocabulary:
+def load_vocabulary(
+    path: Path, *, index_column: str | None = None, categories: dict[int, str] | None = None
+) -> Vocabulary:
+    categories = CATEGORIES if categories is None else categories
     with path.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    labels, categories = [], []
+    labels, kinds = [], []
     for index, row in enumerate(rows):
         try:
             if index_column is not None and int(row[index_column]) != index:
@@ -44,20 +47,24 @@ def load_vocabulary(path: Path, *, index_column: str | None = None) -> Vocabular
             if index_column is not None and isinstance(raw_label, str) and not raw_label.strip():
                 label, category = None, "unnamed"
             else:
-                category = CATEGORIES[int(row["category"])]
+                category = categories[int(row["category"])]
                 label = normalize_tag(raw_label)
         except (KeyError, TypeError, ValueError) as exc:
             raise BenchmarkError(f"Invalid vocabulary row {index}: {exc}") from exc
         labels.append(label)
-        categories.append(category)
+        kinds.append(category)
     named = [label for label in labels if label is not None]
     if not named or len(set(named)) != len(named):
         raise BenchmarkError("Vocabulary must be nonempty without normalized label collisions.")
-    return Vocabulary(tuple(labels), tuple(categories))
+    return Vocabulary(tuple(labels), tuple(kinds))
 
 
 def profile_vocabulary(profile: ModelProfile) -> Vocabulary:
     mode = profile.config["preprocess"]
+    if mode == "pixai-v1.0":
+        return load_vocabulary(
+            profile.artifact("vocabulary"), index_column="tag_id", categories={**CATEGORIES, 1: "style"}
+        )
     if mode not in {"cl-v2", "camie-v2"}:
         return load_vocabulary(
             profile.artifact("vocabulary"), index_column="id" if mode == "pixai-v0.9" else None

@@ -3,7 +3,7 @@
 Local, reproducible comparisons of image tagging models. Run one model, keep its
 complete predictions, then compare it with other saved runs without repeating inference.
 
-The package provides CAFormer B36 FP32/AMP FP16, PixAI v0.9, WD EVA02 v3, CL v2
+The package provides CAFormer B36 FP32/AMP FP16, PixAI v0.9/v1.0 Mexes FP16, WD EVA02 v3, CL v2
 and Camie v2 ONNX profiles, full-score shards, per-category metrics, isolated
 workers, precision comparisons and optional Windows GPU memory sampling.
 Versioned VLM image-chat tasks, strict response validation, repeat stability,
@@ -42,6 +42,10 @@ must match the recorded artifact hashes. A pack contains `model.onnx`,
 `selected_tags.csv` and, where declared, `preprocess.json`. CL uses
 `model_vocabulary.json`, `model_metadata.json` and external `model.onnx.data`
 weights. Camie uses `camie-tagger-v2.onnx` and `camie-tagger-v2-metadata.json`.
+PixAI v1.0 Mexes FP16 uses `model_fp16.onnx`, `selected_tags.csv` and
+`preprocess.json`. Its CSV indices are checked, category 1 is preserved as
+`style`, and its output already contains probabilities. The profile uses the
+export's documented thresholds and a 1008px input; FP16 is intended for GPU use.
 Every required artifact is hash-verified, including external CL weights.
 
 Create `samples.jsonl`, one object per image:
@@ -75,6 +79,7 @@ vision-bench run --dataset ./dataset.json --profile builtin:caformer-b36 --model
 vision-bench run --dataset ./dataset.json --profile builtin:pixai-v0.9 --model-root ./pixai-pack --output ./runs
 # Other profiles: builtin:wd-eva02-v3, builtin:cl-v2, builtin:camie-v2,
 # builtin:caformer-b36-amp-fp16
+# builtin:pixai-v1.0-mexes-fp16
 ```
 
 Add `--provider DmlExecutionProvider` or `--provider CUDAExecutionProvider` to
@@ -162,6 +167,28 @@ site packages. An optional `VISION_BENCH_CUDNN_DIR` selects
 an explicit cuDNN directory in the worker environment; it never changes global
 settings. See [ONNX Runtime DLL loading](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#preload-dlls).
 Use separate runtime environments for provider-specific measurements.
+
+### PyTorch CAFormer resolution experiments
+
+An optional `torch` extra supports local CAFormer B36 safetensors with `timm`;
+it never downloads weights or executes model-repository code. Use a CUDA-enabled
+PyTorch runtime and a custom profile with `backend: "torch-caformer"`,
+`provider: "TorchCUDA"`, `precision: "fp32"` or `"amp-fp16"`, and
+`output_name: "logits"` / `output_kind: "logits"`. Pin the `model`, `vocabulary`,
+`config` and `preprocess` artifacts by SHA-256. The config class count and ordered
+tags must match the CSV, and weights load strictly without changing the head.
+
+`caformer-b36` retains the original 512px bilinear padding followed by a 384px
+bicubic resize. For controlled resolution experiments, use
+`caformer-b36-direct-384`, `caformer-b36-direct-512` or
+`caformer-b36-direct-640`: each resizes the original directly with bicubic
+interpolation, preserves aspect ratio, uses white padding and ImageNet
+normalization. The direct 384px path differs from the original two-stage path;
+include an original-path control when assessing that preprocessing change.
+Keep weights, precision and thresholds fixed across resolutions. AMP leaves
+stored weights in FP32, uses FP16 autocast, and applies sigmoid in FP32.
+PyTorch timings include the output transfer to CPU and CUDA synchronization;
+cross-runtime timings describe the complete measured pipelines.
 
 Static single-frame images only, up to 12 MP / 8192 pixels per edge. Preprocessing
 uses original pixel orientation without an implicit EXIF rotation.

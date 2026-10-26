@@ -68,6 +68,36 @@ def test_bundled_profiles_are_package_resources(tmp_path: Path):
         assert profile.config["provider"] == "CPUExecutionProvider"
 
 
+def test_torch_caformer_profile_requires_explicit_runtime_contract(local_inputs):
+    config = read_object(local_inputs["profile"])
+    config.update(
+        backend="torch-caformer",
+        provider="TorchCUDA",
+        precision="amp-fp16",
+        preprocess="caformer-b36-direct-640",
+        output_name="logits",
+        output_kind="logits",
+    )
+    # These placeholder hashes test profile validation without importing torch or loading weights.
+    config["artifacts"].update(
+        {role: {"path": f"{role}.json", "sha256": "0" * 64} for role in ("config", "preprocess")}
+    )
+    write_json(local_inputs["profile"], config)
+    assert (
+        load_profile(local_inputs["profile"], model_root=local_inputs["root"]).config["precision"]
+        == "amp-fp16"
+    )
+    for key, value in (
+        ("provider", "CUDAExecutionProvider"),
+        ("precision", "int8"),
+        ("preprocess", "pixai-v1.0"),
+        ("output_kind", "probabilities"),
+    ):
+        write_json(local_inputs["profile"], {**config, key: value})
+        with pytest.raises(BenchmarkError):
+            load_profile(local_inputs["profile"], model_root=local_inputs["root"])
+
+
 def test_indexed_vocabulary_preserves_unnamed_output_slots(tmp_path):
     path = tmp_path / "tags.csv"
     path.write_text("id,name,category\n0,known,0\n1,,0\n2,hero,4\n3,,4\n", encoding="utf-8")

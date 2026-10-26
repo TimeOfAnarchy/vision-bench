@@ -34,6 +34,7 @@ def test_public_export_retains_provenance_but_not_private_artifacts(report_runs,
     first = read_object(report_runs[0] / "run.json")
     first["runtime"].pop("environment", None)  # Historical runs must not inherit the exporter's hardware.
     first["runtime"]["model"]["cuda_cudnn_directory"] = "C:/private-user/cudnn"
+    first["runtime"]["model"].update(backend="torch-caformer", torch="2.11.0", precision="amp-fp16")
     first["dataset"]["source"] = {"private_source_path": "C:/private-user/annotations"}
     write_json(report_runs[0] / "run.json", first)
     before = [{p.name: file_hash(p) for p in run.iterdir() if p.is_file()} for run in report_runs]
@@ -58,6 +59,8 @@ def test_public_export_retains_provenance_but_not_private_artifacts(report_runs,
     assert data["dataset"]["annotation_kind"] == "silver"
     assert data["runs"][0]["runtime"]["environment"] == {"status": "not_recorded"}
     assert data["runs"][0]["runtime"]["model"]["onnxruntime"]
+    assert data["runs"][0]["runtime"]["model"]["precision"] == "amp-fp16"
+    assert "PyTorch 2.11.0" in (output / "index.html").read_text()
     assert data["runs"][0]["performance"]["warm"]["count"] == 2
     assert data["runs"][0]["artifact_hashes"]["model"]
     assert data["runs"][0]["metrics_version"] == 2

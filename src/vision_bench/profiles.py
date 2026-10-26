@@ -54,8 +54,27 @@ def load_profile(path: str | Path, *, model_root: Path, provider: str | None = N
         raise BenchmarkError("Unknown preprocessing contract.")
     if provider is not None:
         config["provider"] = provider
-    if config.get("provider") not in PROVIDERS:
+    backend = config.get("backend", "onnx")
+    if backend not in {"onnx", "torch-caformer"}:
+        raise BenchmarkError("Unknown model backend.")
+    providers = {"TorchCUDA"} if backend == "torch-caformer" else PROVIDERS
+    if config.get("provider") not in providers:
         raise BenchmarkError("An explicit supported execution provider is required.")
+    if backend == "torch-caformer" and (
+        config.get("preprocess")
+        not in {
+            "caformer-b36",
+            "caformer-b36-direct-384",
+            "caformer-b36-direct-512",
+            "caformer-b36-direct-640",
+        }
+        or config.get("precision") not in {"fp32", "amp-fp16"}
+        or config.get("output_name") != "logits"
+        or config.get("output_kind") != "logits"
+    ):
+        raise BenchmarkError(
+            "Torch CAFormer requires a supported preprocessing, precision and logits output."
+        )
     if config.get("output_kind") not in {"probabilities", "logits"}:
         raise BenchmarkError("output_kind must be probabilities or logits.")
     if not isinstance(config.get("output_name"), str) or not config["output_name"]:
@@ -75,6 +94,8 @@ def load_profile(path: str | Path, *, model_root: Path, provider: str | None = N
     artifacts = config.get("artifacts")
     if not isinstance(artifacts, dict) or not {"model", "vocabulary"} <= artifacts.keys():
         raise BenchmarkError("Profile needs model and vocabulary artifacts.")
+    if backend == "torch-caformer" and not {"config", "preprocess"} <= artifacts.keys():
+        raise BenchmarkError("Torch CAFormer must pin config and preprocessing provenance.")
     if config["preprocess"] == "cl-v2" and not {"metadata", "model_data"} <= artifacts.keys():
         raise BenchmarkError("CL profiles must pin metadata and external model_data.")
     heads = {
