@@ -21,7 +21,7 @@ from vision_bench.vlm_results import (
     vlm_inventory,
 )
 from vision_bench.vlm_run import run_vlm
-from vision_bench.vlm_transport import post_chat, validate_endpoint
+from vision_bench.vlm_transport import post_chat, post_chat_with_headers, validate_endpoint
 
 
 @pytest.fixture
@@ -105,11 +105,14 @@ def server(replies):
         def do_POST(self):
             payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             received.append({"payload": payload, "authorization": self.headers.get("Authorization")})
-            status, body = replies[min(len(received) - 1, len(replies) - 1)]
+            reply = replies[min(len(received) - 1, len(replies) - 1)]
+            status, body = reply[:2]
             data = body if isinstance(body, bytes) else json.dumps(body).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
+            for name, value in (reply[2] if len(reply) == 3 else {}).items():
+                self.send_header(name, value)
             if status == 307:
                 self.send_header("Location", "/redirected")
             self.end_headers()
@@ -262,6 +265,27 @@ def test_transport_blocks_redirects_and_bounds_response_size(monkeypatch):
         with pytest.raises(TransportError) as error:
             post_chat(endpoint, {}, timeout=1)
     assert error.value.kind == "response_too_large" and len(error.value.body) == 32
+
+
+def test_transport_retains_only_bounded_diagnostic_headers_including_http_errors(monkeypatch):
+    headers = {
+        "X-Generation-Id": "fixture-generation",
+        "Retry-After": "60",
+        "Set-Cookie": "private",
+        "X-Request-Id": "x" * 1100,
+    }
+    with server([(429, b"limited", headers)]) as (endpoint, received):
+        status, body, saved = post_chat_with_headers(endpoint, {}, timeout=1)
+    assert status == 429 and body == b"limited" and len(received) == 1
+    assert saved["x-generation-id"] == "fixture-generation" and saved["retry-after"] == "60"
+    assert len(saved["x-request-id"]) == 1024 and "set-cookie" not in saved
+    monkeypatch.setattr("vision_bench.vlm_transport.MAX_RESPONSE_BYTES", 8)
+    from vision_bench.vlm_transport import TransportError
+
+    with server([(200, b"too-long-response", headers)]) as (endpoint, _):
+        with pytest.raises(TransportError) as error:
+            post_chat_with_headers(endpoint, {}, timeout=1)
+    assert error.value.headers["x-generation-id"] == "fixture-generation"
 
 
 @pytest.mark.parametrize(

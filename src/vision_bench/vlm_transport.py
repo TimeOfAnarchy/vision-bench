@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from PIL import Image
@@ -27,6 +27,7 @@ class TransportError(Exception):
     kind: str
     status: int | None = None
     body: bytes = b""
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 def validate_endpoint(endpoint: str) -> str:
@@ -113,6 +114,14 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 def post_chat(
     endpoint: str, payload: dict, *, timeout: float, api_key: str | None = None
 ) -> tuple[int, bytes]:
+    status, body, _ = post_chat_with_headers(endpoint, payload, timeout=timeout, api_key=api_key)
+    return status, body
+
+
+def post_chat_with_headers(
+    endpoint: str, payload: dict, *, timeout: float, api_key: str | None = None
+) -> tuple[int, bytes, dict[str, str]]:
+    """Retain bounded diagnostic headers without cookies or authorization fields."""
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if api_key:
         headers["Authorization"] = "Bearer " + api_key
@@ -124,20 +133,27 @@ def post_chat(
     )
     # Do not leak local-image requests to ambient HTTP proxies or follow redirects.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
+    status, retained = None, {}
     try:
         try:
             response = opener.open(request, timeout=timeout)
         except urllib.error.HTTPError as exc:
             response = exc
         with response:
+            status = response.code
+            retained = {
+                name: response.headers[name][:1024]
+                for name in ("x-generation-id", "retry-after", "x-request-id", "content-type")
+                if response.headers.get(name) is not None
+            }
             body = response.read(MAX_RESPONSE_BYTES + 1)
             if len(body) > MAX_RESPONSE_BYTES:
-                raise TransportError("response_too_large", response.code, body[:MAX_RESPONSE_BYTES])
-            return response.code, body
+                raise TransportError("response_too_large", status, body[:MAX_RESPONSE_BYTES], retained)
+            return status, body, retained
     except TimeoutError as exc:
-        raise TransportError("timeout") from exc
+        raise TransportError("timeout", status, headers=retained) from exc
     except urllib.error.URLError as exc:
         kind = "timeout" if isinstance(exc.reason, TimeoutError) else "network_error"
-        raise TransportError(kind) from exc
+        raise TransportError(kind, status, headers=retained) from exc
     except (OSError, http.client.HTTPException) as exc:
-        raise TransportError("network_error") from exc
+        raise TransportError("network_error", status, headers=retained) from exc

@@ -236,6 +236,13 @@ python scripts/check_distribution.py --dist .local/package-dist --work .local/pa
 Choose new output directories for repeated checks. GPU providers and real VLM
 servers require separate manual runs; CPU CI does not establish their performance.
 
+Library integrations can use `vision_bench.vlm_transport.post_chat_with_headers`
+to retain the HTTP status, response bytes and a bounded allowlist of diagnostic
+headers (`x-generation-id`, `retry-after`, `x-request-id`, `content-type`). Cookies
+and authorization headers are excluded. The original `post_chat` function keeps
+its two-value return contract. Neither function performs implicit POST retries.
+Transport errors retain diagnostic headers when a response had already started.
+
 ## License
 
 Code, documentation and generated example inputs are licensed under [MIT](LICENSE).
