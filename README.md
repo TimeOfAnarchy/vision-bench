@@ -195,6 +195,16 @@ uses original pixel orientation without an implicit EXIF rotation.
 
 ## Develop
 
+Python integrations can limit CPU work with
+`create_session(path, provider, cpu_threads=4, allow_spinning=False)`, passed as
+the `OnnxTagger` session factory. The thread count limits intra-operator CPU
+parallelism; disabling spinning prevents active waiting in both ONNX thread
+pools. Omitted options retain the runtime defaults. These settings do not limit
+GPU utilization or change the selected primary provider.
+`OnnxTagger(..., max_image_edge=16384)` optionally accepts tall/narrow images up
+to that edge length. The default remains 8192 pixels and the 12 MP area limit
+always applies. This changes decode admission, not model preprocessing or pixels.
+
 `scripts/convert_onnx_fp16.py` creates a separate derived ONNX pack, retaining
 float32 I/O, the source/derived hashes, converter versions and explicitly retained
 float32 nodes. It refuses an existing output directory and never changes the

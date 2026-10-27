@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 
 from .errors import BenchmarkError
+from .io import positive_int
 
 PREPROCESS_VERSION = "image-taggers-v1"
 INPUT_SHAPES = {
@@ -22,12 +23,15 @@ INPUT_SHAPES = {
 }
 
 
-def image_tensor(path: Path, mode: str) -> np.ndarray:
+def image_tensor(path: Path, mode: str, *, max_edge: int = 8192) -> np.ndarray:
+    positive_int(max_edge, name="max_edge")
+    if max_edge > 16384:
+        raise BenchmarkError("Decode edge limit cannot exceed 16384 pixels.")
     with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         with Image.open(path) as image:
-            if max(image.size) > 8192 or image.width * image.height > 12_000_000:
-                raise BenchmarkError("Image exceeds the 8192-edge / 12MP decode limit.")
+            if max(image.size) > max_edge or image.width * image.height > 12_000_000:
+                raise BenchmarkError(f"Image exceeds the {max_edge}-edge / 12MP decode limit.")
             if getattr(image, "n_frames", 1) != 1:
                 raise BenchmarkError("Only single-frame images are supported.")
             return preprocess_image(image, mode)

@@ -120,7 +120,13 @@ def profile_vocabulary(profile: ModelProfile) -> Vocabulary:
     return Vocabulary(tuple(labels), tuple(categories))
 
 
-def create_session(path: Path, provider: str):
+def create_session(
+    path: Path, provider: str, *, cpu_threads: int | None = None, allow_spinning: bool | None = None
+):
+    if cpu_threads is not None:
+        positive_int(cpu_threads, name="cpu_threads")
+    if allow_spinning is not None and not isinstance(allow_spinning, bool):
+        raise BenchmarkError("allow_spinning must be a boolean.")
     try:
         import onnxruntime as ort
     except ImportError as exc:
@@ -138,6 +144,11 @@ def create_session(path: Path, provider: str):
     options = ort.SessionOptions()
     options.enable_mem_pattern = provider != "DmlExecutionProvider"
     options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    if cpu_threads is not None:
+        options.intra_op_num_threads = cpu_threads
+    if allow_spinning is not None:
+        for pool in ("intra_op", "inter_op"):
+            options.add_session_config_entry(f"session.{pool}.allow_spinning", str(int(allow_spinning)))
     providers = [provider] if provider == "CPUExecutionProvider" else [provider, "CPUExecutionProvider"]
     session = ort.InferenceSession(str(path), sess_options=options, providers=providers)
     session.disable_fallback()
@@ -147,8 +158,14 @@ def create_session(path: Path, provider: str):
 class OnnxTagger:
     """A single explicit ONNX model, with no global session or environment mutation."""
 
-    def __init__(self, profile: ModelProfile, *, session_factory: Callable = create_session):
+    def __init__(
+        self, profile: ModelProfile, *, session_factory: Callable = create_session, max_image_edge: int = 8192
+    ):
+        positive_int(max_image_edge, name="max_image_edge")
+        if max_image_edge > 16384:
+            raise BenchmarkError("Decode edge limit cannot exceed 16384 pixels.")
         self.profile = profile
+        self.max_image_edge = max_image_edge
         self._factory = session_factory
         self._session = None
         self.vocabulary = profile_vocabulary(profile)
@@ -206,7 +223,7 @@ class OnnxTagger:
         if self._session is None:
             raise BenchmarkError("Model must be loaded before inference.")
         config = self.profile.config
-        tensor = image_tensor(image_path, config["preprocess"])
+        tensor = image_tensor(image_path, config["preprocess"], max_edge=self.max_image_edge)
         output = np.asarray(self._session.run([config["output_name"]], {self._input: tensor})[0])
         if output.shape != (1, len(self.vocabulary.labels)) or not np.isfinite(output).all():
             raise BenchmarkError("Model returned an invalid complete score vector.")
