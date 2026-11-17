@@ -45,8 +45,8 @@ retained as exclusions in JSON. Timing uses each run's own warm successful rows,
 not the paired-quality mask. Compare timing only under matching conditions.
 
 Silver annotations are incomplete source labels, not verified human ground truth.
-A reported F1 is therefore not proof of moderation safety. WDDM GPU memory remains
-a sampled process high water including model loading, not an allocator peak.
+A reported F1 describes agreement with those labels. WDDM GPU memory remains a
+sampled process high water including model loading, not an allocator peak.
 
 ## Upload manually to Hugging Face
 

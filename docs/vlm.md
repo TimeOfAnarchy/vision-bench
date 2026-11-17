@@ -3,7 +3,7 @@
 Vision Bench sends single images to an existing, non-streaming
 chat-completions HTTP endpoint, such as [llama.cpp's image-chat server](https://github.com/ggml-org/llama.cpp/tree/master/tools/server).
 It never loads server weights, starts services, switches models or applies an
-application's moderation rules. HTTP client timings do not measure server VRAM,
+application's decision rules. HTTP client timings do not measure server VRAM,
 model loading or isolated kernel performance.
 
 ## Task and model configuration

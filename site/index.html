@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Local image tagger and VLM benchmarks: quality, speed, precision, and reproducible offline results.">
+  <meta name="description" content="A lightweight local benchmark for image models and checkpoints, with an autotagging case study and reproducible offline reports.">
   <title>Vision Bench — image tagger and VLM benchmarks</title>
   <style>
     :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #101218; color: #f0f2f8; }
@@ -25,6 +25,8 @@
     .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 36px 0; }
     .card, .install { background: #181d29; border: 1px solid #30384b; border-radius: 12px; padding: 22px; }
     .card p { color: #bdc5d8; margin: 0; }
+    .case-study { margin: 36px 0; }
+    .case-study img { display: block; width: 100%; height: auto; border: 1px solid #46506e; border-radius: 8px; margin-top: 20px; }
     pre { background: #101218; border-radius: 8px; padding: 16px; overflow-x: auto; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .9rem; }
     .notes { margin: 30px 0; padding-left: 20px; color: #bdc5d8; }
@@ -38,10 +40,10 @@
     <header>
       <div class="eyebrow">Open source · MIT · Python 3.11+</div>
       <h1>Vision Bench</h1>
-      <p class="lead">Compare image taggers and VLMs with saved predictions, explicit metrics, and reproducible offline results.</p>
+      <p class="lead">A lightweight local benchmark for new image models and fine-tuned checkpoints. Save complete predictions and compare runs offline.</p>
       <div class="actions">
-        <a class="button" href="https://huggingface.co/spaces/TimeOfAnarchy/vision-bench/resolve/main/vision_bench-0.3.1-py3-none-any.whl?download=true" target="_blank" rel="noopener">Download wheel · v0.3.1</a>
-        <a class="button secondary" href="https://huggingface.co/spaces/TimeOfAnarchy/vision-bench/resolve/main/vision_bench-0.3.1.tar.gz?download=true" target="_blank" rel="noopener">Download source &amp; examples</a>
+        <a class="button" href="https://github.com/TimeOfAnarchy/vision-bench/releases/latest" target="_blank" rel="noopener">Latest release &amp; downloads</a>
+        <a class="button secondary" href="https://github.com/TimeOfAnarchy/vision-bench" target="_blank" rel="noopener">Source &amp; documentation</a>
       </div>
       <p class="muted">Runs on your computer. Model weights and evaluation datasets are supplied separately.</p>
     </header>
@@ -61,23 +63,35 @@
       </article>
     </section>
 
+    <section class="install case-study" id="autotagging" aria-labelledby="case-heading">
+      <h2 id="case-heading">Autotagging in practice</h2>
+      <p>What changes when you increase CAFormer's input resolution or use PixAI for the same tagging task? This case study compares five configured pipelines on the same 1,024 images.</p>
+      <p>Read the measured quality, latency and memory trade-offs, with explicit vocabulary coverage and experiment limits.</p>
+      <a class="button" href="./experiments/autotagging/index.html">Read the experiment</a>
+      <a href="./experiments/autotagging/index.html" aria-label="Open the autotagging experiment"><img src="./experiments/autotagging/preview.jpg" alt="Preview of the autotagging experiment report" loading="lazy" width="1265" height="712"></a>
+    </section>
+
     <section class="install" aria-labelledby="install-heading">
-      <h2 id="install-heading">Install the CPU version</h2>
-      <p>Download the wheel, then run this command in its folder inside an activated Python environment:</p>
-      <pre><code>python -m pip install "./vision_bench-0.3.1-py3-none-any.whl[cpu]"</code></pre>
-      <p class="muted">The source archive contains the README, full documentation and an offline example that generates its own images and a tiny untrained ONNX model.</p>
+      <h2 id="install-heading">Try the CPU workflow</h2>
+      <p>Clone the source and create a Python 3.11+ environment:</p>
+      <pre><code>git clone https://github.com/TimeOfAnarchy/vision-bench.git
+cd vision-bench
+python -m venv .venv</code></pre>
+      <p>Activate it with <code>.venv\Scripts\Activate.ps1</code> in Windows PowerShell or <code>source .venv/bin/activate</code> on Linux/macOS, then install:</p>
+      <pre><code>python -m pip install ".[cpu,demo]"</code></pre>
+      <p class="muted">The <a href="https://github.com/TimeOfAnarchy/vision-bench/tree/master/examples" target="_blank" rel="noopener">offline CPU example</a> generates its own images and a tiny untrained ONNX model. For a packaged installation, download the wheel and checksums from the latest GitHub release.</p>
     </section>
 
     <ul class="notes">
       <li>This page distributes the local tool. It does not run inference or use your GPU in the browser.</li>
-      <li>Incomplete source tags remain silver annotations; native rating heads are not application moderation decisions.</li>
+      <li>Incomplete source tags remain silver annotations. Unlabeled predictions are not verified false positives.</li>
       <li>Real GPU and VLM measurements depend on your hardware and runtime. The generated example checks the workflow, not real model quality.</li>
     </ul>
 
     <footer>
-      Vision Bench 0.3.1 · TimeOfAnarchy · MIT for project code<br>
+      Vision Bench · TimeOfAnarchy · MIT for project code<br>
       Third-party models and datasets retain their own terms.
-      <a href="https://huggingface.co/spaces/TimeOfAnarchy/vision-bench/tree/main" target="_blank" rel="noopener">Browse release files</a>
+      <a href="https://github.com/TimeOfAnarchy/vision-bench/releases/latest" target="_blank" rel="noopener">Latest release</a> · <a href="https://github.com/TimeOfAnarchy/vision-bench" target="_blank" rel="noopener">GitHub</a>
     </footer>
   </main>
 </body>

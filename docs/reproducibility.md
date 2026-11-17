@@ -31,10 +31,9 @@ the CPU CI suite does not validate them. See [VLM constraints](vlm.md).
 
 Incomplete source tags remain silver labels. Missing tags count as negatives
 for the stated metric, without proving that unlabeled predictions are incorrect.
-Synthetic example labels are algorithmic, not human annotations. Native rating
-heads are model outputs, not application moderation decisions. Review exports
-are proposals until separately reviewed; failure/unknown/abstention states do
-not become successful safe predictions.
+Synthetic example labels are algorithmic, not human annotations. Native output
+categories retain their original semantics. Review exports are proposals until
+separately reviewed; failure/unknown/abstention states remain explicit outcomes.
 
 `recompute` verifies saved artifacts and compares metrics exactly without
 inference or editing the original run. `compare` uses paired successful samples

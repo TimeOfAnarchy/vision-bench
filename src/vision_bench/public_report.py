@@ -16,7 +16,7 @@ from .io import file_hash, read_object, write_json
 NOTES = [
     "Paired quality compares the same successful samples and common category vocabulary. Full-truth recall/F1 also count source positives outside that vocabulary.",
     "Native quality uses each model's complete vocabulary and its own successful samples; its denominators differ from the paired comparison.",
-    "Silver source annotations are incomplete. Unlabeled predictions are not verified false positives; native ratings are not moderation verdicts.",
+    "Silver source annotations are incomplete. Unlabeled predictions are not verified false positives; native output categories retain their original semantics.",
     "Latency covers decoding, preprocessing and inference, excluding integrity checks and loading. Timing uses each run's own successful warm rows, not the paired quality subset.",
     "Timing differences are not model speedups unless hardware, provider, runtime and measurement conditions match. Power settings and competing workloads are not automatically recorded.",
     "GPU memory is a sampled WDDM process high water including loading, not an instantaneous allocator peak. GPU inventory does not establish which device a session used.",
@@ -328,7 +328,16 @@ def render(data: dict) -> tuple[str, str]:
     )
     section(
         "Hardware and software",
-        ["Model", "CPU", "RAM GiB", "NVIDIA inventory / driver", "Provider", "Runtime", "Python", "Vision Bench"],
+        [
+            "Model",
+            "CPU",
+            "RAM GiB",
+            "NVIDIA inventory / driver",
+            "Provider",
+            "Runtime",
+            "Python",
+            "Vision Bench",
+        ],
         [
             [
                 r["profile_id"],
