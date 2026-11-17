@@ -54,10 +54,11 @@ compares PixAI 1.0 and CAFormer preprocessing/resolution variants on the same
 vocabulary coverage, measured latency and process memory.
 
 The report includes the question, measured trade-offs, model revisions and
-measurement limits. Source annotations are incomplete silver labels; the exact
-image selection is private, so the published aggregates do not enable an exact
-rerun of that experiment. You can reproduce the complete tool workflow with the
-generated example below.
+measurement limits. The [reproduction kit](https://timeofanarchy-vision-bench.static.hf.space/experiments/autotagging/reproduce/v1/index.html)
+freezes all 1,024 sample IDs, image hashes, source annotations, model profiles and
+saved predictions. Replay the saved metrics without a GPU, or recover the exact
+image bytes and rerun the pinned pipelines. Source annotations remain incomplete
+silver labels; upstream image availability and model access requirements apply.
 
 ## Try the workflow without model downloads
 
