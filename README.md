@@ -6,7 +6,7 @@
 A lightweight local benchmark for comparing image tagging models and checkpoints.
 Run inference once, keep every prediction, and compare saved runs offline.
 
-[Autotagging case study](https://timeofanarchy-vision-bench.hf.space/#autotagging) ·
+[Autotagging case study](https://timeofanarchy-vision-bench.static.hf.space/experiments/autotagging/index.html) ·
 [Latest release](https://github.com/TimeOfAnarchy/vision-bench/releases/latest) ·
 [Tagging guide](docs/taggers.md) · [VLM experiments](docs/vlm.md)
 
@@ -47,7 +47,7 @@ you need separately; the tool does not manage a database or start model services
 
 ## Autotagging in practice
 
-The [case study on Hugging Face](https://timeofanarchy-vision-bench.hf.space/#autotagging)
+The [case study on Hugging Face](https://timeofanarchy-vision-bench.static.hf.space/experiments/autotagging/index.html)
 compares PixAI 1.0 and CAFormer preprocessing/resolution variants on the same
 1,024-image selection. It examines ranking quality, fixed-threshold decisions,
 vocabulary coverage, measured latency and process memory.
