@@ -6,14 +6,16 @@ category vocabularies. `export-report` turns two or more completed compatible
 runs into a portable, aggregate publication:
 
 ```console
-vision-bench export-report ./runs/pixai ./runs/caformer --title "PixAI vs CAFormer" --dataset-description "Frozen holdout, source taxonomy annotations" --dataset-url https://example.org/my-dataset-selection --output .local/reports/my-comparison
+vision-bench export-report ./runs/model-a ./runs/model-b --title "Autotagging comparison" --dataset-description "Frozen holdout, source taxonomy annotations" --output .local/reports/my-comparison
 ```
 
-Use your actual run directories and public selection URL; the names above do
-not start either model or select a PixAI version. Models need their own reviewed,
-hash-pinned profiles. Export verifies source artifacts, requires the same dataset
-fingerprint/order/labels and does not run inference or modify the original runs.
-An existing output directory is refused.
+Use completed run directories, such as those in the [tagging guide](taggers.md).
+Models need their own reviewed, hash-pinned profiles. Export verifies source
+artifacts, requires the same dataset fingerprint/order/labels and does not run
+inference or modify the original runs. An existing output directory is refused.
+Add `--dataset-url` when you have a public, authorized reference for the exact
+image selection. Omit it when that reference is unavailable and state the
+reproduction limit in `--dataset-description`.
 
 The new directory contains:
 
@@ -23,7 +25,7 @@ The new directory contains:
   profile thresholds/artifact hashes, software versions and measured hardware;
 - `SHA256SUMS`: hashes of the three report files.
 
-New tagger runs capture CPU identifier, logical CPU count, RAM, OS and best-effort
+New tagger runs capture CPU identifier, logical CPU count, total host RAM, OS and best-effort
 NVIDIA model/VRAM/driver inventory. This probe runs after inference timings, has
 a bounded timeout, and records no hostname, username, serial number or GPU UUID.
 It describes visible devices, not verified session-to-device binding. A failed
@@ -51,11 +53,26 @@ sampled process high water including model loading, not an allocator peak.
 ## Upload manually to Hugging Face
 
 Open `index.html` locally and review its tables and the full aggregate JSON first.
-Create a separate **Static / Blank Space** for this experiment, then upload all
-four generated files to its root. The generated README configures `index.html`
-as its application. Keep the package's download Space separate from individual
-experiments. Creating or uploading a report is a manual step; this command never
-logs in or publishes.
+Publish all four files together in a **Static Space**. Choose either layout:
+
+- **Existing Space:** upload the report into a distinct subdirectory, such as
+  `experiments/my-comparison/`. Preserve its relative links and the existing root
+  README's application configuration. Add a link to the report from the homepage.
+- **Dedicated Space:** upload the four files to its root. The generated README
+  declares `sdk: static` and `app_file: index.html` for this layout.
+
+This project's [Space](https://huggingface.co/spaces/TimeOfAnarchy/vision-bench)
+uses the first layout. The tracked `site/index.html` is the homepage source;
+experiment pages and assets are uploaded separately. The worked autotagging case
+is under `experiments/autotagging/`, with its exported aggregate report in `data/`.
+Those experiment artifacts are kept outside the source repository and package.
+
+Use the Space's actual application URL for report links. This project's static
+host is `https://timeofanarchy-vision-bench.static.hf.space/`. Packaged downloads
+are maintained in [GitHub releases](https://github.com/TimeOfAnarchy/vision-bench/releases/latest).
+Creating or uploading a report is a manual step; `export-report` never logs in or
+publishes. Hosts may inject HTML into rendered pages; verify exported checksums
+against the original uploaded files in the Space's Files view.
 
 The export omits raw scores, per-label breakdowns, sample identities, images,
 request/log files, local directories and arbitrary dataset source metadata.

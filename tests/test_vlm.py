@@ -449,6 +449,53 @@ def test_socket_timeouts_are_distinct_and_have_bounded_retries(vlm_inputs, monke
     assert metrics["outcomes"] == {"timeout": 1} and metrics["attempts"] == 2
 
 
+@pytest.mark.parametrize("status", [200, 503])
+@pytest.mark.parametrize("error,outcome", [(TimeoutError, "timeout"), (OSError, "network_error")])
+def test_response_read_failures_preserve_received_status_and_recompute(
+    vlm_inputs, monkeypatch, status, error, outcome
+):
+    class Response:
+        code = status
+        headers = {"x-request-id": "fixture-request"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def read(self, size):
+            raise error("Response failed after receiving headers")
+
+    class Opener:
+        def open(self, *args, **kwargs):
+            return Response()
+
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
+    path = run_vlm(**vlm_inputs, endpoint="http://127.0.0.1:1/chat", repeats=1, retries=1, limit=1)
+    manifest, _, _, _, records = load_vlm_run(path)
+    assert manifest["state"] == "completed"
+    assert [attempt["http_status"] for attempt in records[0]["attempts"]] == [status, status]
+    metrics = compute_vlm_metrics(path)
+    assert metrics["outcomes"] == {outcome: 1}
+    assert metrics["attempts"] == 2
+    assert metrics == read_object(path / "metrics.json")
+
+
+@pytest.mark.parametrize("status", [None, True, 0, 600, 200.0, "200"])
+def test_saved_http_outcomes_require_a_valid_integer_status(vlm_inputs, status):
+    with server([(200, response())]) as (endpoint, _):
+        path = run_vlm(**vlm_inputs, endpoint=endpoint, repeats=1, limit=1)
+    records = read_jsonl(path / "records.jsonl")
+    records[0]["attempts"][0]["http_status"] = status
+    write_jsonl(path / "records.jsonl", records)
+    manifest = read_object(path / "run.json")
+    manifest["artifacts"] = vlm_inventory(path)
+    write_json(path / "run.json", manifest)
+    with pytest.raises(BenchmarkError, match="HTTP status"):
+        load_vlm_run(path)
+
+
 def test_interrupt_preserves_a_failed_diagnostic_run(vlm_inputs, monkeypatch):
     def interrupted(*args, **kwargs):
         raise KeyboardInterrupt

@@ -80,7 +80,10 @@ def test_public_export_retains_provenance_but_not_private_artifacts(report_runs,
         assert private not in text
     assert "<script>" not in (output / "index.html").read_text()
     assert "&lt;script&gt;" in (output / "index.html").read_text()
-    assert "sdk: static" in (output / "README.md").read_text()
+    readme = (output / "README.md").read_text()
+    assert "sdk: static" in readme
+    assert "each model's complete vocabulary" in readme
+    assert "&lt;script&gt;" in readme
     assert "GPU sampling status" in (output / "index.html").read_text()
     for line in (output / "SHA256SUMS").read_text().splitlines():
         digest, name = line.split("  ")

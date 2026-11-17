@@ -43,8 +43,8 @@ Use `human` only for human-reviewed labels; `silver` means incomplete source lab
 
 ```console
 vision-bench validate --dataset ./dataset.json
-vision-bench run --dataset ./dataset.json --profile builtin:caformer-b36 --model-root ./caformer-pack --output ./runs
-vision-bench run --dataset ./dataset.json --profile builtin:pixai-v0.9 --model-root ./pixai-pack --output ./runs
+vision-bench run --dataset ./dataset.json --profile builtin:caformer-b36 --model-root ./caformer-pack --output ./runs --run-id model-a
+vision-bench run --dataset ./dataset.json --profile builtin:pixai-v0.9 --model-root ./pixai-pack --output ./runs --run-id model-b
 # Other profiles: builtin:wd-eva02-v3, builtin:cl-v2, builtin:camie-v2,
 # builtin:caformer-b36-amp-fp16
 # builtin:pixai-v1.0-mexes-fp16
@@ -70,7 +70,7 @@ their scores keep their original column positions and are not evaluated as tags.
 Failed samples have NaN rows and a separate failure mask, never fake zero scores.
 
 ```console
-vision-bench recompute ./runs/my-run
+vision-bench recompute ./runs/model-a
 vision-bench compare ./runs/model-a ./runs/model-b --output ./comparison.json
 ```
 
@@ -98,9 +98,10 @@ warm summary by default. GPU memory is unavailable unless sampling is requested
 and produces sufficient observations. No external service is started or stopped.
 
 Scores are loaded one shard at a time into temporary disk-backed matrices;
-metrics use bounded column blocks. Recording shards are limited to 64 MiB of score data. Temporary disk
-space is required for one full float32 matrix per open run; precision comparison
-also uses a temporary error matrix. Set a suitable cache location when needed:
+metrics use bounded column blocks. Recording shards are limited to 64 MiB of score
+data. Temporary disk space is required for one full float32 matrix per open run;
+precision comparison also uses a temporary error matrix. Set a suitable cache
+location when needed:
 
 ```console
 vision-bench --cache-dir ./cache compare ./runs/model-a ./runs/model-b --output ./comparison.json
@@ -127,7 +128,8 @@ Raw samples are stored in `memory.jsonl`. The default interval is 250 ms; a shor
 or insufficient sampling span is not reported as a memory high-water estimate.
 Unavailable/failed counters remain unavailable, never fake zero measurements.
 Observed high water is a sampled process metric, not an instantaneous allocator
-peak, and includes model loading plus inference. RAM collection is not implemented.
+peak, and includes model loading plus inference. Process RAM usage is not measured;
+total host RAM is recorded separately as hardware inventory.
 
 CUDA requires compatible CUDA/cuDNN DLLs, which can be loaded from NVIDIA
 site packages. An optional `VISION_BENCH_CUDNN_DIR` selects

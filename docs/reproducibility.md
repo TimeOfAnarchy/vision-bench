@@ -11,8 +11,12 @@ source annotations or model outputs. No such assets are redistributed here.
 Record dataset revision, exact selected IDs/image hashes, source annotation
 provenance, model repository revision and every pack artifact hash. Bundled
 profiles record particular exports; another export needs its own reviewed
-profile. Keep preprocessing, category semantics, thresholds and provider fixed
-for a comparison. Document threshold provenance; do not tune on the holdout.
+profile. Keep category semantics and the selected images aligned. Record differences
+in preprocessing, thresholds and providers: `compare` evaluates those complete
+configured pipelines. Document threshold provenance; do not tune on the holdout.
+Controlled precision comparisons additionally require the same pinned model
+repository/revision, indexed vocabulary, preprocessing implementation, provider,
+thresholds and successful-sample mask.
 
 Record Python/package/runtime versions, OS, GPU/driver, power settings, competing
 processes and warmup count with your experiment. Run one model per worker and
@@ -23,9 +27,10 @@ timings, device kernels or floating-point scores on another machine.
 Latency covers decode/preprocessing/inference, excluding integrity checks and
 model loading. WDDM memory sampling is Windows-only and reports an observed
 process high water including loading, with dedicated/shared memory kept separate.
-It is not an instantaneous allocator peak or server VRAM measurement. CUDA,
-DirectML, GPU memory and real VLM endpoints require separate manual evidence;
-the CPU CI suite does not validate them. See [VLM constraints](vlm.md).
+It is not an instantaneous allocator peak or server VRAM measurement. Host RAM
+inventory describes total physical RAM; process RAM usage is not measured.
+CUDA, DirectML, GPU memory and real VLM endpoints require separate manual
+evidence; the CPU CI suite does not validate them. See [VLM constraints](vlm.md).
 
 ## Labels and conclusions
 
@@ -52,5 +57,6 @@ The GitHub workflow builds wheel and source archives, installs the wheel in a
 fresh environment outside the checkout, runs tests shipped in the source archive,
 and executes the generated example. It covers Python 3.11/3.13 on Linux and
 Python 3.13 on Windows using CPU ONNX Runtime. It does not download model weights,
-start inference servers or publish packages. CI definitions are not evidence of
-a completed remote run; consult the actual job results after uploading a repository.
+start inference servers or publish packages. Consult the actual
+[CPU package check results](https://github.com/TimeOfAnarchy/vision-bench/actions/workflows/ci.yml)
+for the tested commit; CPU CI does not establish real-model or GPU performance.

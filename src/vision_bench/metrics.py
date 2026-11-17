@@ -33,27 +33,6 @@ def average_precision(truth: np.ndarray, scores: np.ndarray) -> float | None:
     return float(np.sum(np.diff(np.r_[0.0, recall]) * precision))
 
 
-def evaluate_scores(
-    scores: np.ndarray,
-    labels: list[str],
-    truth_sets: list[set[str]],
-    threshold: float,
-    *,
-    block_size: int = 128,
-) -> dict:
-    if scores.shape != (len(truth_sets), len(labels)):
-        raise BenchmarkError("Score matrix shape differs from labels/annotations.")
-    return evaluate_columns(
-        scores,
-        np.arange(scores.shape[0]),
-        list(range(len(labels))),
-        labels,
-        truth_sets,
-        threshold,
-        block_size=block_size,
-    )
-
-
 def evaluate_columns(
     scores: np.ndarray,
     rows: np.ndarray,

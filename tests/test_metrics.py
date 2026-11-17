@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from vision_bench.metrics import average_precision, evaluate_scores
+from vision_bench.metrics import average_precision, evaluate_columns
 
 
 def test_average_precision_groups_tied_predictions():
@@ -11,8 +11,10 @@ def test_average_precision_groups_tied_predictions():
 
 
 def test_full_truth_counts_out_of_vocabulary_and_threshold_is_inclusive():
-    result = evaluate_scores(
+    result = evaluate_columns(
         np.asarray([[0.5, 0.4], [0.1, 0.9]], dtype=np.float32),
+        np.arange(2),
+        [0, 1],
         ["cat", "dog"],
         [{"cat", "outside"}, {"dog"}],
         0.5,
@@ -24,14 +26,19 @@ def test_full_truth_counts_out_of_vocabulary_and_threshold_is_inclusive():
 
 
 def test_unsupported_labels_have_no_ap_but_keep_unlabeled_positives():
-    result = evaluate_scores(
-        np.asarray([[0.9, 0.8]], dtype=np.float32), ["known", "unlabeled"], [{"known"}], 0.5
+    result = evaluate_columns(
+        np.asarray([[0.9, 0.8]], dtype=np.float32),
+        np.arange(1),
+        [0, 1],
+        ["known", "unlabeled"],
+        [{"known"}],
+        0.5,
     )
     assert result["mean_average_precision_supported"] == 1
     assert result["micro_full_truth"]["unlabeled_positive"] == 1
 
 
 def test_empty_vocabulary_keeps_all_positive_labels_as_misses():
-    result = evaluate_scores(np.empty((1, 0), dtype=np.float32), [], [{"outside"}], 0.5)
+    result = evaluate_columns(np.empty((1, 0), dtype=np.float32), np.arange(1), [], [], [{"outside"}], 0.5)
     assert result["micro_full_truth"]["false_negative"] == 1
     assert result["mean_average_precision_supported"] is None

@@ -9,7 +9,6 @@ from .errors import BenchmarkError
 from .io import child_path, content_hash, file_hash, identifier, read_object, sha256_value
 from .preprocess import INPUT_SHAPES
 
-PREPROCESS_MODES = set(INPUT_SHAPES)
 PROVIDERS = {"CPUExecutionProvider", "DmlExecutionProvider", "CUDAExecutionProvider"}
 
 
@@ -50,7 +49,7 @@ def load_profile(path: str | Path, *, model_root: Path, provider: str | None = N
     if config.get("schema_version") != 1:
         raise BenchmarkError("Model profile schema_version must be 1.")
     identifier(config.get("id"))
-    if config.get("preprocess") not in PREPROCESS_MODES:
+    if config.get("preprocess") not in INPUT_SHAPES:
         raise BenchmarkError("Unknown preprocessing contract.")
     if provider is not None:
         config["provider"] = provider

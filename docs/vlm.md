@@ -77,7 +77,9 @@ short exponential backoff. A network timeout may leave server work in progress;
 retrying can generate additional work. Malformed JSON, schema failures, refusals,
 truncations and other HTTP errors are never retried or silently repaired.
 `--timeout` is a socket I/O timeout per HTTP attempt, not a wall-clock deadline
-for the entire run. Responses are limited to 4 MiB per attempt.
+for the entire run. Responses are limited to 4 MiB per attempt. A timeout or
+network failure while reading a response retains any HTTP status already received;
+the attempt remains a failed outcome even when that status is 200.
 
 ## Artifacts and offline analysis
 

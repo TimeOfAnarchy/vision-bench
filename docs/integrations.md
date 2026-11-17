@@ -30,6 +30,7 @@ file size alone is not a GPU memory or numerical-accuracy measurement.
 Library integrations can use `vision_bench.vlm_transport.post_chat_with_headers`
 to retain the HTTP status, response bytes and a bounded allowlist of diagnostic
 headers (`x-generation-id`, `retry-after`, `x-request-id`, `content-type`). Cookies
-and authorization headers are excluded. The original `post_chat` function keeps
-its two-value return contract. Neither function performs implicit POST retries.
-Transport errors retain diagnostic headers when a response had already started.
+and authorization headers are excluded. `post_chat` returns `(status, body)`;
+`post_chat_with_headers` returns `(status, body, headers)`. Neither function
+performs implicit POST retries. `TransportError` retains the received HTTP status
+and diagnostic headers when reading an already-started response fails.

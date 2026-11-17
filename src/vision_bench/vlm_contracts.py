@@ -77,11 +77,7 @@ def task_validator(task: dict) -> Draft202012Validator:
     ):
         raise BenchmarkError("Task needs unique comparison_fields.")
     for key in fields:
-        if (
-            not isinstance(key, str)
-            or key not in schema.get("properties", {})
-            or key not in schema.get("required", [])
-        ):
+        if key not in schema.get("properties", {}) or key not in schema.get("required", []):
             raise BenchmarkError("Comparison fields must be required top-level schema properties.")
     return Draft202012Validator(schema, registry=Registry(retrieve=_no_resource))
 

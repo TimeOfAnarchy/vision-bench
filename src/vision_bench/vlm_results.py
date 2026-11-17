@@ -127,9 +127,9 @@ def load_vlm_run(run_dir: Path) -> tuple[dict, dict, dict, list[dict], list[dict
             if path.stat().st_size > MAX_RESPONSE_BYTES:
                 raise BenchmarkError("Recorded VLM response exceeds the size bound.")
             status = attempt.get("http_status")
-            if attempt["outcome"] in {"network_error", "timeout"}:
-                if status is not None:
-                    raise BenchmarkError("Network failures cannot declare an HTTP status.")
+            if status is None:
+                if attempt["outcome"] not in {"network_error", "timeout"}:
+                    raise BenchmarkError("Invalid recorded HTTP status.")
             elif isinstance(status, bool) or not isinstance(status, int) or not 100 <= status <= 599:
                 raise BenchmarkError("Invalid recorded HTTP status.")
             if attempt["outcome"] in {"network_error", "timeout", "response_too_large"}:

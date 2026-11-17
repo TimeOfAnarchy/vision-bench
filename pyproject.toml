@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "TimeOfAnarchy"}]
-dependencies = ["numpy>=2.0,<3", "Pillow>=11,<13", "jsonschema>=4.23,<5"]
+dependencies = ["numpy>=2.0,<3", "Pillow>=11,<13", "jsonschema>=4.23,<5", "referencing>=0.28.4,<1"]
 
 [project.optional-dependencies]
 cpu = ["onnxruntime>=1.22,<2"]

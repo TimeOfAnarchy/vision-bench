@@ -5,7 +5,7 @@ import pytest
 
 from vision_bench.errors import BenchmarkError
 from vision_bench.io import file_hash, read_object, write_json
-from vision_bench.metrics import evaluate_scores
+from vision_bench.metrics import evaluate_columns
 from vision_bench.precision import compare_precision
 from vision_bench.runner import run_benchmark
 
@@ -13,7 +13,10 @@ from vision_bench.runner import run_benchmark
 def test_metric_blocks_have_exact_chunk_independent_counts_ap_and_oov():
     scores = np.asarray([[0.5, 0.2, 0.9], [0.5, 0.8, 0.3], [0.1, 0.8, 0.2]], dtype=np.float32)
     truth = [{"a", "outside"}, {"b"}, {"b"}]
-    values = [evaluate_scores(scores, ["a", "b", "c"], truth, 0.5, block_size=size) for size in (1, 2, 128)]
+    values = [
+        evaluate_columns(scores, np.arange(3), [0, 1, 2], ["a", "b", "c"], truth, 0.5, block_size=size)
+        for size in (1, 2, 128)
+    ]
     assert values[0] == values[1] == values[2]
     assert values[0]["micro_full_truth"]["true_positive"] == 3
     assert values[0]["micro_full_truth"]["false_negative"] == 1

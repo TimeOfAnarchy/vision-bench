@@ -238,7 +238,9 @@ def render(data: dict) -> tuple[str, str]:
         return html.escape(str(value))
 
     def md(value):
-        return re.sub(r"([\\`*_{}\[\]()#+.!|])", r"\\\1", text(value)).replace("\n", " ")
+        return re.sub(r"([\\`*_{}\[\]()#+.!|])", r"\\\1", html.escape(str(value), quote=False)).replace(
+            "\n", " "
+        )
 
     def number(value):
         return "n/a" if value is None else f"{value:.4f}"

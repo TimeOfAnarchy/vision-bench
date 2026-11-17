@@ -42,8 +42,9 @@ flowchart LR
     E --> F[Portable HTML and JSON reports]
 ```
 
-The core package uses NumPy, Pillow and jsonschema. Install the inference runtime
-you need separately; the tool does not manage a database or start model services.
+The core package uses NumPy, Pillow, jsonschema and referencing. Install the
+inference runtime you need separately; the tool does not manage a database or
+start model services.
 
 ## Autotagging in practice
 
@@ -68,7 +69,7 @@ cd vision-bench
 python -m venv .venv
 ```
 
-Activate it with `.venv\Scripts\Activate.ps1` on Windows PowerShell or
+Activate it with `.\.venv\Scripts\Activate.ps1` on Windows PowerShell or
 `source .venv/bin/activate` on Linux/macOS, then run:
 
 ```console
@@ -100,12 +101,13 @@ for different runtimes. The optional `torch` extra is separate.
 
 ```console
 vision-bench validate --dataset ./dataset.json
-vision-bench run --dataset ./dataset.json --profile builtin:caformer-b36 --model-root ./caformer-pack --output ./runs
-vision-bench recompute ./runs/my-run
+vision-bench run --dataset ./dataset.json --profile builtin:caformer-b36 --model-root ./caformer-pack --output ./runs --run-id model-a
+vision-bench run --dataset ./dataset.json --profile builtin:pixai-v0.9 --model-root ./pixai-pack --output ./runs --run-id model-b
+vision-bench recompute ./runs/model-a
 vision-bench compare ./runs/model-a ./runs/model-b --output ./comparison.json
 ```
 
-Use the actual generated run directories for offline commands. See:
+Choose new run IDs and output files for each experiment. See:
 
 - [Tagging guide](docs/taggers.md): manifests, model packs, providers, metrics,
   precision comparisons, GPU memory and PyTorch experiments.
