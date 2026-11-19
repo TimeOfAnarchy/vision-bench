@@ -19,6 +19,7 @@ from .compare import category_selection, paired_rows
 from .errors import BenchmarkError
 from .io import canonical_json, content_hash, read_jsonl, read_object
 from .metrics import truth_block
+from .thresholds import Thresholds
 
 VERDICTS = ("present", "absent", "unsure")
 Z_95 = 1.959963984540054
@@ -30,7 +31,7 @@ def _unlabeled_positives(
     columns: list[int],
     labels: list[str],
     truth_sets: list[set[str]],
-    threshold: float,
+    threshold: Thresholds,
     *,
     block_size: int = 128,
 ) -> tuple[int, np.ndarray]:
@@ -40,7 +41,7 @@ def _unlabeled_positives(
         stop = min(start + block_size, len(labels))
         block = np.asarray(scores[np.ix_(rows, columns[start:stop])], dtype=np.float32)
         truth = truth_block(labels[start:stop], truth_sets)
-        predicted = block >= threshold
+        predicted = block >= threshold.for_labels(labels[start:stop])
         true_positive += int(np.count_nonzero(truth & predicted))
         position, label = np.nonzero(~truth & predicted)
         pairs.append(np.stack([position, label + start], axis=1))
@@ -81,7 +82,7 @@ def _plan(paths: list[Path], runs: list[tuple], category: str, per_run: int, see
             {
                 "run_id": run[0]["run_id"],
                 "profile_id": config["id"],
-                "threshold": threshold,
+                **threshold.describe(labels),
                 "true_positive": true_positive,
                 "unlabeled_positive": len(pairs),
                 "sampled": len(chosen),

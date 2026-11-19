@@ -19,6 +19,23 @@ def add_bootstrap_arguments(command: argparse.ArgumentParser) -> None:
     command.add_argument("--bootstrap-seed", type=int, default=0, help="Seed for bootstrap resampling")
 
 
+def add_tag_mapping_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--tag-mapping", type=Path, help="Versioned JSON with category-scoped tag aliases")
+    command.add_argument(
+        "--include-implications", action="store_true", help="Apply implication rules from the mapping"
+    )
+
+
+def tag_mapping_from_args(args: argparse.Namespace):
+    if args.tag_mapping is not None:
+        from .tag_mapping import load_tag_mapping
+
+        return load_tag_mapping(args.tag_mapping, include_implications=args.include_implications)
+    if args.include_implications:
+        raise BenchmarkError("--include-implications requires --tag-mapping.")
+    return None
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="vision-bench", description="Independent local image tagger benchmarks"
@@ -53,12 +70,23 @@ def parser() -> argparse.ArgumentParser:
         "recompute", help="Verify artifacts and compare recomputed metrics without inference"
     )
     recalc.add_argument("run", type=Path)
+    fit = modes.add_parser("fit-thresholds", help="Fit a new profile from a separate saved calibration run")
+    fit.add_argument("run", type=Path)
+    fit.add_argument("--output", type=Path, required=True, help="New model profile JSON")
+    fit.add_argument(
+        "--profile-id", help="ID for the fitted profile; defaults to the original ID with -fitted"
+    )
+    fit.add_argument(
+        "--per-tag", action="store_true", help="Fit supported tags in addition to category fallbacks"
+    )
+    fit.add_argument("--min-support", type=int, default=20, help="Minimum annotated images per fitted tag")
     compare = modes.add_parser("compare", help="Compare saved runs on paired samples and common vocabularies")
     compare.add_argument("runs", type=Path, nargs="+")
     compare.add_argument(
         "--output", type=Path, required=True, help="New JSON report; existing files are never replaced"
     )
     add_bootstrap_arguments(compare)
+    add_tag_mapping_arguments(compare)
     precision = modes.add_parser(
         "precision", help="Compare two precision/export variants at identical operating points"
     )
@@ -132,6 +160,12 @@ def parser() -> argparse.ArgumentParser:
     audit_score.add_argument("audit", type=Path)
     audit_score.add_argument("runs", type=Path, nargs="+", help="The exported runs, in export order")
     audit_score.add_argument("--output", type=Path, required=True)
+    hard = modes.add_parser("hard-images", help="Export images with disagreeing predictions or low F1")
+    hard.add_argument("runs", type=Path, nargs="+")
+    hard.add_argument("--category", required=True)
+    hard.add_argument("--output", type=Path, required=True, help="New JSONL review packet")
+    hard.add_argument("--top", type=int, default=25, help="Images to select per ranking")
+    add_tag_mapping_arguments(hard)
     return root
 
 
@@ -207,6 +241,21 @@ def main(argv: list[str] | None = None) -> int:
                 bootstrap_seed=args.bootstrap_seed,
             )
             result = {"report": str(path / "index.html"), "directory": str(path)}
+        elif args.command == "fit-thresholds":
+            from .threshold_fit import fit_thresholds
+
+            profile = fit_thresholds(
+                args.run,
+                output=args.output,
+                profile_id=args.profile_id,
+                per_tag=args.per_tag,
+                min_support=args.min_support,
+                cache_dir=args.cache_dir,
+            )
+            result = {
+                "profile": str(args.output),
+                "fitted_categories": profile["threshold_fit"]["fitted_categories"],
+            }
         elif args.command == "vlm-review":
             from .vlm_results import export_vlm_review
 
@@ -267,6 +316,18 @@ def main(argv: list[str] | None = None) -> int:
                     for run in scored["runs"]
                 },
             }
+        elif args.command == "hard-images":
+            from .hard_images import export_hard_images
+
+            count = export_hard_images(
+                args.runs,
+                category=args.category,
+                output=args.output,
+                top=args.top,
+                tag_mapping=tag_mapping_from_args(args),
+                cache_dir=args.cache_dir,
+            )
+            result = {"review": str(args.output), "items": count}
         else:
             if args.command == "compare":
                 from .compare import compare_runs
@@ -276,6 +337,7 @@ def main(argv: list[str] | None = None) -> int:
                     cache_dir=args.cache_dir,
                     bootstrap_resamples=args.bootstrap_resamples,
                     bootstrap_seed=args.bootstrap_seed,
+                    tag_mapping=tag_mapping_from_args(args),
                 )
             elif args.command == "precision":
                 from .precision import compare_precision

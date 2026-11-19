@@ -10,10 +10,27 @@ import numpy as np
 
 from .errors import BenchmarkError
 from .metrics import truth_block
+from .score_blocks import MappedScores, score_block
 
 GRID_STEPS = 1000
 CALIBRATION_BINS = 10
 TARGETS = (0.5, 0.6, 0.7, 0.8)
+THRESHOLD_GRID = (np.arange(GRID_STEPS + 1) / GRID_STEPS).astype(np.float32)
+
+
+def score_levels(block: np.ndarray) -> np.ndarray:
+    if not np.isfinite(block).all() or np.any((block < 0) | (block > 1)):
+        raise BenchmarkError("Invalid probabilities in sweep block.")
+    return np.searchsorted(THRESHOLD_GRID, block, side="right") - 1
+
+
+def reverse_counts(levels: np.ndarray) -> np.ndarray:
+    return np.cumsum(levels[::-1])[::-1]
+
+
+def f1_curve(tp: np.ndarray, fp: np.ndarray) -> np.ndarray:
+    denominator = tp + fp + tp[0]
+    return np.divide(2 * tp, denominator, out=np.zeros(len(tp)), where=denominator > 0)
 
 
 def _point(index: int, precision: np.ndarray, recall: np.ndarray, f1: np.ndarray) -> dict:
@@ -31,7 +48,7 @@ def _best(values: np.ndarray, allowed: np.ndarray) -> int | None:
 
 
 def threshold_analysis(
-    scores: np.ndarray,
+    scores: np.ndarray | MappedScores,
     rows: np.ndarray,
     columns: list[int],
     labels: list[str],
@@ -42,7 +59,6 @@ def threshold_analysis(
     """Counts at every grid threshold (score >= threshold, float32) and calibration bins."""
     if len(rows) != len(truth_sets) or len(columns) != len(labels):
         raise BenchmarkError("Sweep selection and annotations disagree.")
-    grid = (np.arange(GRID_STEPS + 1) / GRID_STEPS).astype(np.float32)
     positive_levels = np.zeros(GRID_STEPS + 1, dtype=np.int64)
     negative_levels = np.zeros(GRID_STEPS + 1, dtype=np.int64)
     bin_count = np.zeros(CALIBRATION_BINS, dtype=np.int64)
@@ -50,24 +66,22 @@ def threshold_analysis(
     bin_score = np.zeros(CALIBRATION_BINS)
     for start in range(0, len(labels), block_size):
         stop = min(start + block_size, len(labels))
-        block = np.asarray(scores[np.ix_(rows, columns[start:stop])], dtype=np.float32)
-        if not np.isfinite(block).all() or np.any((block < 0) | (block > 1)):
-            raise BenchmarkError("Invalid probabilities in sweep block.")
+        block = np.asarray(score_block(scores, rows, columns[start:stop]), dtype=np.float32)
         truth = truth_block(labels[start:stop], truth_sets)
-        level = np.searchsorted(grid, block, side="right") - 1
+        level = score_levels(block)
         positive_levels += np.bincount(level[truth], minlength=GRID_STEPS + 1)
         negative_levels += np.bincount(level[~truth], minlength=GRID_STEPS + 1)
         bucket = np.minimum(level // (GRID_STEPS // CALIBRATION_BINS), CALIBRATION_BINS - 1)
         bin_count += np.bincount(bucket.ravel(), minlength=CALIBRATION_BINS)
         bin_positive += np.bincount(bucket[truth], minlength=CALIBRATION_BINS)
         bin_score += np.bincount(bucket.ravel(), weights=block.ravel(), minlength=CALIBRATION_BINS)
-    tp = np.cumsum(positive_levels[::-1])[::-1]
-    fp = np.cumsum(negative_levels[::-1])[::-1]
+    tp = reverse_counts(positive_levels)
+    fp = reverse_counts(negative_levels)
     positives = int(tp[0])
     predicted = tp + fp
     precision = np.divide(tp, predicted, out=np.zeros(len(tp)), where=predicted > 0)
     recall = tp / positives if positives else np.zeros(len(tp))
-    f1 = np.divide(2 * tp, predicted + positives, out=np.zeros(len(tp)), where=(predicted + positives) > 0)
+    f1 = f1_curve(tp, fp)
 
     def target(index: int | None) -> dict | None:
         return None if index is None else _point(index, precision, recall, f1)

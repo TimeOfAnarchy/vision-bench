@@ -11,6 +11,7 @@ from .dataset import NORMALIZATION_VERSION, normalized_sample
 from .errors import BenchmarkError
 from .io import child_path, content_hash, file_hash, read_jsonl, read_object
 from .metrics import evaluate_columns, performance_summary
+from .thresholds import Thresholds, validate_tag_thresholds, verify_calibration_split
 
 
 def artifact_metadata(run_dir: Path) -> list[dict]:
@@ -57,6 +58,8 @@ def _metadata(run_dir: Path, manifest: dict | None = None) -> tuple:
         or profile["id"] != manifest["profile_id"]
     ):
         raise BenchmarkError("Run dataset/profile metadata does not match its saved inputs.")
+    validate_tag_thresholds(profile)
+    verify_calibration_split(profile, samples)
     vocabulary = read_object(run_dir / "vocabulary.json")
     labels, categories = vocabulary["labels"], vocabulary["categories"]
     named_labels = [label for label in labels if label is not None]
@@ -156,7 +159,7 @@ def _compute_metrics(run_dir: Path, data: tuple) -> dict:
             continue
         truth = [set(sample["tags"][category]) for sample in selected]
         categories[category] = evaluate_columns(
-            scores, np.flatnonzero(valid), columns, labels, truth, profile["thresholds"][category]
+            scores, np.flatnonzero(valid), columns, labels, truth, Thresholds.for_category(profile, category)
         )
     return {
         "schema_version": 1,

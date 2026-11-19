@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -8,6 +7,7 @@ from pathlib import Path
 from .errors import BenchmarkError
 from .io import child_path, content_hash, file_hash, identifier, read_object, sha256_value
 from .preprocess import INPUT_SHAPES
+from .thresholds import calibration_hashes, valid_threshold, validate_tag_thresholds
 
 PROVIDERS = {"CPUExecutionProvider", "DmlExecutionProvider", "CUDAExecutionProvider"}
 
@@ -83,13 +83,10 @@ def load_profile(path: str | Path, *, model_root: Path, provider: str | None = N
         raise BenchmarkError("Explicit per-category thresholds are required.")
     for category, value in thresholds.items():
         identifier(category)
-        if (
-            isinstance(value, bool)
-            or not isinstance(value, (float, int))
-            or not math.isfinite(value)
-            or not 0 <= value <= 1
-        ):
+        if not valid_threshold(value):
             raise BenchmarkError(f"Invalid threshold for {category!r}.")
+    validate_tag_thresholds(config)
+    calibration_hashes(config)
     artifacts = config.get("artifacts")
     if not isinstance(artifacts, dict) or not {"model", "vocabulary"} <= artifacts.keys():
         raise BenchmarkError("Profile needs model and vocabulary artifacts.")

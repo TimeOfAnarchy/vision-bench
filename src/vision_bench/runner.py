@@ -11,6 +11,7 @@ from .errors import BenchmarkError
 from .io import identifier, positive_int, read_object, write_json, write_jsonl
 from .profiles import load_profile
 from .report import write_report
+from .thresholds import verify_calibration_split
 from .worker_process import execute_worker
 
 
@@ -44,6 +45,7 @@ def run_benchmark(
         raise BenchmarkError("warmup must be nonnegative and timeout must be finite and positive.")
     dataset = load_dataset(dataset_path, limit=limit)
     profile = load_profile(profile_path, model_root=model_root, provider=provider)
+    verify_calibration_split(profile.config, dataset.samples)
     profile.verify()
     vocabulary = profile_vocabulary(profile)
     if (

@@ -92,6 +92,35 @@ include out-of-vocabulary positive labels; mAP is over represented labels with
 positive support. Native output categories retain their original semantics.
 Operating thresholds are fixed profile inputs, not fitted on the evaluation set.
 
+### Fit operating thresholds on a calibration split
+
+Run each model on the same separate calibration dataset, then fit a new profile
+from each completed run. `fit-thresholds` reads saved scores on CPU.
+
+```console
+vision-bench run --dataset ./calibration.json --profile ./model.json --model-root ./model-pack --output ./runs --run-id calibration-a --provider CPUExecutionProvider
+vision-bench fit-thresholds ./runs/calibration-a --output ./model-fitted.json --per-tag --min-support 20
+vision-bench run --dataset ./holdout.json --profile ./model-fitted.json --model-root ./model-pack --output ./runs --run-id holdout-a --provider CPUExecutionProvider
+```
+
+The command maximizes category micro-F1 over each model's named outputs in
+that category on the successful calibration images. With `--per-tag` it also
+maximizes each eligible tag's F1. Support is the count of successful calibration
+images annotated with that tag. Other tags use the fitted category threshold.
+Thresholds use the same 0.001 grid as the sweep below, choosing the lowest
+threshold when F1 ties. Categories with no annotated in-vocabulary positives
+retain their original settings. Fitting requires at least one eligible category.
+
+The new profile records the source run and dataset fingerprints, sample counts,
+method and image hashes. Evaluation checks the image hashes of the entire
+selection against those from calibration, including failed rows, so renamed
+byte-identical images are caught. Prepare splits carefully for near-duplicates
+and for images with prior use during model development. Both native and paired
+metrics use the effective per-tag thresholds when present. Keep the fitting
+options and annotation policy consistent when comparing fitted models.
+
+### Compare results
+
 Each compared category also gets a `bootstrap` block: 95% percentile intervals
 for every run's micro, macro-F1 and mAP metrics, and for each run's difference
 from the first listed run (the reference). Every resample draws the paired
@@ -113,8 +142,9 @@ Each compared run therefore also has a `threshold_analysis` over the same common
 outputs and paired samples, micro-averaged over sample-label pairs:
 
 - `true_positive` and `unlabeled_positive` at every threshold from 0 to 1 in
-  steps of 0.001 (`score >= threshold` in float32). The index of a profile
-  threshold reproduces its fixed-threshold micro counts.
+  steps of 0.001 (`score >= threshold` in float32). The matching grid point
+  reproduces fixed-threshold micro counts for profiles with one grid threshold
+  per category.
 - `precision_at_recall` and `recall_at_precision` at 0.5/0.6/0.7/0.8 compare
   models at matched operating points; `null` means the target is unreachable.
 - `best_f1` chooses its threshold on the evaluation set itself. It shows how much
@@ -148,6 +178,33 @@ images carry the label (1, 2-4, 5-19, 20-99, 100+): label and occurrence counts,
 macro-F1, mAP and micro precision/recall/F1 per stratum. Strata come from the
 shared annotations, so they hold the same labels for every compared run. Labels
 without annotated positives, and their unlabeled predictions, are in no stratum.
+
+### Compare with aliases or implications
+
+`compare` matches exact tag names within each category by default. Pass
+`--tag-mapping ./mapping.json` to canonicalize model outputs and annotations
+using a file of this form:
+
+```json
+{
+  "schema_version": 1,
+  "categories": {
+    "general": {
+      "aliases": {"kitty_ears": "cat_ears"},
+      "implications": {"cat_ears": ["animal_ears"]}
+    }
+  }
+}
+```
+
+Add `--include-implications` to include all implied parents, transitively, in
+both the annotations and each model's reachable outputs. The shared vocabulary
+is the intersection of those reachable outputs. With aliases or implications,
+any contributing native output can trigger a prediction at its own operating
+threshold. AP, top-k and common-threshold sweeps use the maximum contributing
+score. The report records the mapping file hash, mode and strict coverage
+alongside the mapped coverage. Implications can change the number of annotated
+positives, so check both counts before comparing coverage percentages.
 
 ## Find tag regressions between checkpoints
 
@@ -203,6 +260,29 @@ and audited precision `(TP + unlabeled x present rate) / predicted`. Recall
 cannot be corrected this way: tags missed by both the source and the model stay
 unknown. The packet contains local image paths and sample identifiers; review it
 locally and treat verdicts as one reviewer's judgement.
+
+## Review difficult images
+
+```console
+vision-bench hard-images ./runs/model-a ./runs/model-b --category general --top 25 --output ./hard-images.jsonl
+```
+
+The command reads saved scores and ranks jointly successful images over the
+same common vocabulary as `compare`. It takes up to `--top` images with nonzero
+disagreement (mean pairwise Jaccard distance between predicted tag sets) and up
+to `--top` images per run with the lowest defined common-output F1. Identical
+empty prediction sets have distance zero. F1 is undefined if both the model's
+predictions and the common annotations are empty. Ties use sample IDs.
+
+Each selected image appears once with its ranks, path relative to the dataset's
+image root, annotations, per-run predictions and scores, missed annotations,
+unlabeled predictions, and a field for review notes. The packet includes
+full-truth F1 and tags outside the common vocabulary to make coverage gaps
+visible. Add the same `--tag-mapping` and `--include-implications` options as
+for `compare` to review a mapped comparison. If reviewed images inform model
+changes, use a fresh holdout to evaluate the next version.
+
+## Timing and temporary storage
 
 Latency includes decoding, preprocessing and inference, excludes integrity
 checks and model loading. The first five selected rows are excluded from the

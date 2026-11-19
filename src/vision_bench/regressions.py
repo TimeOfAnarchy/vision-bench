@@ -25,7 +25,11 @@ EXAMPLES = 3
 
 
 def _label_f1(
-    truth: np.ndarray, block: np.ndarray, threshold: float, weights: np.ndarray, support: np.ndarray
+    truth: np.ndarray,
+    block: np.ndarray,
+    threshold: float | np.ndarray,
+    weights: np.ndarray,
+    support: np.ndarray,
 ):
     predicted = block >= threshold
     tp = weights @ (truth & predicted).astype(np.float64)
@@ -112,7 +116,7 @@ def _category(runs, configs, rows, category, weights, min_support, fdr, block_si
         ]
         ap = [block_average_precision(truth, block, weights, support) for block in blocks]
         f1 = [
-            _label_f1(truth, block, threshold, weights, support)
+            _label_f1(truth, block, threshold.for_labels(labels[start:stop]), weights, support)
             for block, (_, _, threshold) in zip(blocks, selections, strict=True)
         ]
         for offset in range(stop - start):
@@ -159,7 +163,20 @@ def _category(runs, configs, rows, category, weights, min_support, fdr, block_si
         "label_count": len(labels),
         "supported_labels": len(entries),
         "tested_labels": sum(entry["support"] >= min_support for entry in entries),
-        "thresholds": {"baseline": selections[0][2], "candidate": selections[1][2]},
+        "thresholds": {
+            role: selection[2].default
+            for role, selection in zip(("baseline", "candidate"), selections, strict=True)
+        },
+        **(
+            {
+                "tag_thresholds": {
+                    role: selection[2].describe(labels).get("tag_thresholds", {})
+                    for role, selection in zip(("baseline", "candidate"), selections, strict=True)
+                }
+            }
+            if any(selection[2].overrides for selection in selections)
+            else {}
+        ),
         "summary": summary,
         "labels": entries,
     }

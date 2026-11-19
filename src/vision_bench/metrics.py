@@ -4,6 +4,8 @@ import numpy as np
 
 from .errors import BenchmarkError
 from .io import positive_int
+from .score_blocks import MappedScores, describe_thresholds, scored_decisions
+from .thresholds import Thresholds, valid_threshold
 
 
 def ratio(numerator: int | float, denominator: int | float) -> float:
@@ -41,12 +43,12 @@ def average_precision(truth: np.ndarray, scores: np.ndarray) -> float | None:
 
 
 def evaluate_columns(
-    scores: np.ndarray,
+    scores: np.ndarray | MappedScores,
     rows: np.ndarray,
     columns: list[int],
     labels: list[str],
     truth_sets: list[set[str]],
-    threshold: float,
+    threshold: float | Thresholds,
     *,
     block_size: int = 128,
 ) -> dict:
@@ -54,18 +56,18 @@ def evaluate_columns(
     positive_int(block_size, name="metric block size")
     if len(rows) != len(truth_sets) or len(columns) != len(labels):
         raise BenchmarkError("Metric selection and annotations disagree.")
-    if len(set(labels)) != len(labels) or not 0 <= threshold <= 1:
+    thresholds = threshold if isinstance(threshold, Thresholds) else Thresholds(threshold)
+    if len(set(labels)) != len(labels) or not valid_threshold(thresholds.default):
         raise BenchmarkError("Invalid vocabulary or metric threshold.")
     vocabulary = set(labels)
     tp, fp, fn, support = (np.zeros(len(labels), dtype=np.int64) for _ in range(4))
     per_label, ap_values = [], []
     for start in range(0, len(labels), block_size):
         stop = min(start + block_size, len(labels))
-        block = scores[np.ix_(rows, columns[start:stop])]
+        block, predicted = scored_decisions(scores, rows, columns[start:stop], labels[start:stop], thresholds)
         if not np.isfinite(block).all() or np.any((block < 0) | (block > 1)):
             raise BenchmarkError("Invalid probabilities in metric block.")
         truth = truth_block(labels[start:stop], truth_sets)
-        predicted = block >= threshold
         tp[start:stop] = np.count_nonzero(truth & predicted, axis=0)
         fp[start:stop] = np.count_nonzero(~truth & predicted, axis=0)
         fn[start:stop] = np.count_nonzero(truth & ~predicted, axis=0)
@@ -94,7 +96,7 @@ def evaluate_columns(
     return {
         "sample_count": len(truth_sets),
         "label_count": len(labels),
-        "threshold": threshold,
+        **describe_thresholds(scores, labels, thresholds),
         "micro_representable": counts_metrics(int(tp.sum()), int(fp.sum()), int(fn.sum())),
         "micro_full_truth": counts_metrics(int(tp.sum()), int(fp.sum()), int(fn.sum()) + oov),
         "macro_f1_supported": float(macro_f1[supported].mean()) if supported.any() else None,

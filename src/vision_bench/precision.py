@@ -11,6 +11,7 @@ from .artifacts import load_results
 from .errors import BenchmarkError
 from .io import read_object
 from .metrics import evaluate_columns, ratio
+from .thresholds import Thresholds
 
 
 def compare_precision(baseline: Path, candidate: Path, *, cache_dir: Path | None = None) -> dict:
@@ -32,6 +33,11 @@ def compare_precision(baseline: Path, candidate: Path, *, cache_dir: Path | None
         for key in ("preprocess", "provider", "thresholds"):
             if configs[0][key] != configs[1][key]:
                 raise BenchmarkError(f"Precision comparison requires the same {key}.")
+        if configs[0].get("tag_thresholds", {}) != configs[1].get("tag_thresholds", {}):
+            raise BenchmarkError("Precision comparison requires the same tag thresholds.")
+        policies = {
+            category: Thresholds.for_category(configs[0], category) for category in configs[0]["thresholds"]
+        }
         if left[0]["runtime"]["preprocess_code_sha256"] != right[0]["runtime"]["preprocess_code_sha256"]:
             raise BenchmarkError("Precision runs use different preprocessing implementations.")
         if not np.array_equal(left[4], right[4]):
@@ -73,9 +79,10 @@ def compare_precision(baseline: Path, candidate: Path, *, cache_dir: Path | None
                         }
                     for local, column in enumerate(columns):
                         category = categories[column]
-                        if labels[column] is None or category not in configs[0]["thresholds"]:
+                        if labels[column] is None or category not in policies:
                             continue
-                        threshold = configs[0]["thresholds"][category]
+                        policy = policies[category]
+                        threshold = policy.overrides.get(labels[column], policy.default)
                         flips = (a[:, local] >= threshold) != (b[:, local] >= threshold)
                         flips_by_label[column] = int(flips.sum())
                         changed_images |= flips
@@ -87,7 +94,7 @@ def compare_precision(baseline: Path, candidate: Path, *, cache_dir: Path | None
             indices = [i for i, kind in enumerate(categories) if kind == category and labels[i] is not None]
             flips = int(flips_by_label[indices].sum())
             threshold_changes[category] = {
-                "threshold": configs[0]["thresholds"][category],
+                **policies[category].describe([labels[index] for index in indices]),
                 "decisions": len(rows) * len(indices),
                 "flips": flips,
                 "flip_fraction": ratio(flips, len(rows) * len(indices)),
@@ -100,7 +107,7 @@ def compare_precision(baseline: Path, candidate: Path, *, cache_dir: Path | None
             names = [labels[i] for i in columns]
             truth = [set(left[1][int(row)]["tags"][category]) for row in rows]
             values = [
-                evaluate_columns(data[3], rows, columns, names, truth, configs[0]["thresholds"][category])
+                evaluate_columns(data[3], rows, columns, names, truth, policies[category])
                 for data in (left, right)
             ]
             quality[category] = {

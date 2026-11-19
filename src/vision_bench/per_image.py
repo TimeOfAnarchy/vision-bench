@@ -10,17 +10,19 @@ import numpy as np
 
 from .errors import BenchmarkError
 from .metrics import truth_block
+from .score_blocks import MappedScores, score_block, scored_decisions
+from .thresholds import Thresholds
 
 RANKS = (5, 10, 20)
 
 
 def per_image_counts(
-    scores: np.ndarray,
+    scores: np.ndarray | MappedScores,
     rows: np.ndarray,
     columns: list[int],
     labels: list[str],
     truth_sets: list[set[str]],
-    threshold: float,
+    threshold: float | Thresholds,
     *,
     block_size: int = 128,
 ) -> dict[str, np.ndarray]:
@@ -31,15 +33,11 @@ def per_image_counts(
     depth = max(RANKS)
     top = np.full((count, depth), -np.inf, dtype=np.float32)
 
-    def blocks():
-        for start in range(0, len(labels), block_size):
-            stop = min(start + block_size, len(labels))
-            block = np.asarray(scores[np.ix_(rows, columns[start:stop])], dtype=np.float32)
-            if not np.isfinite(block).all() or np.any((block < 0) | (block > 1)):
-                raise BenchmarkError("Invalid probabilities in per-image block.")
-            yield block, truth_block(labels[start:stop], truth_sets)
-
-    for block, _ in blocks():
+    starts = range(0, len(labels), block_size)
+    for start in starts:
+        block = np.asarray(score_block(scores, rows, columns[start : start + block_size]), dtype=np.float32)
+        if not np.isfinite(block).all() or np.any((block < 0) | (block > 1)):
+            raise BenchmarkError("Invalid probabilities in per-image block.")
         merged = np.concatenate([top, block], axis=1)
         top = -np.partition(-merged, depth - 1, axis=1)[:, :depth]
     top = -np.sort(-top, axis=1)
@@ -47,8 +45,12 @@ def per_image_counts(
     tp, fp, fn = (np.zeros(count, dtype=np.int64) for _ in range(3))
     above = {rank: np.zeros((2, count), dtype=np.int64) for rank in RANKS}  # all, positive
     tied = {rank: np.zeros((2, count), dtype=np.int64) for rank in RANKS}
-    for block, truth in blocks():
-        predicted = block >= threshold
+    for start in starts:
+        stop = start + block_size
+        block, predicted = scored_decisions(
+            scores, rows, columns[start:stop], labels[start:stop], threshold, dtype=np.float32
+        )
+        truth = truth_block(labels[start:stop], truth_sets)
         tp += np.count_nonzero(truth & predicted, axis=1)
         fp += np.count_nonzero(~truth & predicted, axis=1)
         fn += np.count_nonzero(truth & ~predicted, axis=1)

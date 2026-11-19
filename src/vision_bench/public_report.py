@@ -40,6 +40,7 @@ def aggregate_quality(value: dict) -> dict:
             "sample_count",
             "label_count",
             "threshold",
+            "tag_thresholds",
             "macro_f1_supported",
             "mean_average_precision_supported",
         ),
@@ -159,6 +160,28 @@ def export_report(
                 "normalization": manifest.get("normalization"),
                 "model_outputs": pick(metrics.get("model_outputs", {}), ("total", "named", "unnamed")),
                 "thresholds": profile["thresholds"],
+                **pick(profile, ("tag_thresholds",)),
+                **(
+                    {
+                        "threshold_fit": pick(
+                            profile["threshold_fit"],
+                            (
+                                "objective",
+                                "grid_step",
+                                "tie_break",
+                                "min_tag_support",
+                                "source_run_fingerprint",
+                                "dataset_fingerprint",
+                                "annotation_kind",
+                                "selected_images",
+                                "successful_images",
+                                "fitted_categories",
+                            ),
+                        )
+                    }
+                    if "threshold_fit" in profile
+                    else {}
+                ),
                 "preprocess": profile["preprocess"],
                 "runtime": {
                     **pick(runtime, ("platform", "preprocess_version", "preprocess_code_sha256")),

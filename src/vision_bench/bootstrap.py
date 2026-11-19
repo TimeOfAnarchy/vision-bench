@@ -11,6 +11,8 @@ import numpy as np
 
 from .errors import BenchmarkError
 from .metrics import truth_block
+from .score_blocks import MappedScores, scored_decisions
+from .thresholds import Thresholds
 
 CONFIDENCE = 0.95
 CUTOFF_COLUMNS = 2048
@@ -68,7 +70,7 @@ def block_average_precision(
 
 
 def weighted_metrics(
-    runs: list[tuple[np.ndarray, list[int], float]],
+    runs: list[tuple[np.ndarray | MappedScores, list[int], float | Thresholds]],
     rows: np.ndarray,
     labels: list[str],
     truth_sets: list[set[str]],
@@ -94,8 +96,9 @@ def weighted_metrics(
         truth = truth_block(labels[start:stop], truth_sets)
         support = weights @ truth.astype(np.float64)
         for (scores, columns, threshold), totals in zip(runs, state, strict=True):
-            block = np.asarray(scores[np.ix_(rows, columns[start:stop])], dtype=np.float32)
-            predicted = block >= threshold
+            block, predicted = scored_decisions(
+                scores, rows, columns[start:stop], labels[start:stop], threshold, dtype=np.float32
+            )
             tp = weights @ (truth & predicted).astype(np.float64)
             fp = weights @ (~truth & predicted).astype(np.float64)
             fn = support - tp
