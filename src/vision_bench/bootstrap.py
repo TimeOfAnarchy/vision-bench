@@ -14,15 +14,6 @@ from .metrics import truth_block
 
 CONFIDENCE = 0.95
 CUTOFF_COLUMNS = 2048
-METRICS = (
-    "micro_full_truth_f1",
-    "micro_full_truth_recall",
-    "micro_representable_f1",
-    "micro_representable_precision",
-    "micro_representable_recall",
-    "macro_f1_supported",
-    "mean_average_precision_supported",
-)
 
 
 def resample_weights(count: int, resamples: int, seed: int) -> np.ndarray:
@@ -157,13 +148,13 @@ def summarize(run_ids: list[str], statistics: list[dict[str, np.ndarray]]) -> di
     reference = statistics[0]
     return {
         "runs": [
-            {"run_id": run_id, "metrics": {name: _interval(values[name]) for name in METRICS}}
+            {"run_id": run_id, "metrics": {name: _interval(value) for name, value in values.items()}}
             for run_id, values in zip(run_ids, statistics, strict=True)
         ],
         "differences_from_reference": [
             {
                 "run_id": run_id,
-                "metrics": {name: _interval(values[name] - reference[name]) for name in METRICS},
+                "metrics": {name: _interval(value - reference[name]) for name, value in values.items()},
             }
             for run_id, values in zip(run_ids[1:], statistics[1:], strict=True)
         ],

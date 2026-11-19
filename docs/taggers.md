@@ -125,6 +125,23 @@ outputs and paired samples, micro-averaged over sample-label pairs:
   >= 0.1, where tags are actually decided. Incomplete silver labels understate
   the true positive rate, so treat calibration as a relative signal.
 
+Micro metrics weight images by how many tags they have. Each compared run also
+has a `per_image` block on the same common outputs that weights every image once,
+closer to what one tagged image looks like:
+
+- per-image precision, recall and F1 (common-output and full-truth) at the
+  profile threshold, averaged over the images that define each metric; the
+  `images` count beside each value is its denominator;
+- `sample_recall_at_5/10/20`: annotated common-output positives among each
+  image's k highest scores, divided by its annotated positives. Positives tied at
+  the k-th score share the remaining slots evenly, so column order never matters;
+- full-truth F1 percentiles (p10/p25/median), images without any prediction,
+  images with annotated common-output positives but no hits (a model miss), and
+  images whose positives are all outside the common vocabulary (a coverage gap,
+  which full-truth recall also counts).
+
+The image-averaged metrics also get paired bootstrap intervals and differences.
+
 Latency includes decoding, preprocessing and inference, excludes integrity
 checks and model loading. The first five selected rows are excluded from the
 warm summary by default. GPU memory is unavailable unless sampling is requested

@@ -79,6 +79,11 @@ def test_compare_refuses_dataset_drift_and_reports_common_character_metrics(loca
     assert observed["estimate"] == general["runs"][1]["metrics"]["micro_full_truth"]["f1"]
     assert observed["valid_resamples"] == 1000 and observed["low"] <= observed["high"]
     assert general["bootstrap"]["differences_from_reference"][0]["run_id"] == "model-b"
+    per_image = general["runs"][1]["per_image"]["metrics"]["sample_f1_full_truth"]
+    assert (
+        general["bootstrap"]["runs"][1]["metrics"]["sample_f1_full_truth"]["estimate"] == per_image["value"]
+    )
+    assert per_image["images"] == 3
     disabled = compare_runs([first, second], bootstrap_resamples=0)
     assert disabled["bootstrap"] == {"status": "disabled"}
     assert "bootstrap" not in disabled["categories"]["general"]

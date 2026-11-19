@@ -10,6 +10,7 @@ from .bootstrap import CONFIDENCE, resample_weights, summarize, weighted_metrics
 from .errors import BenchmarkError
 from .io import content_hash, read_object
 from .metrics import evaluate_columns
+from .per_image import per_image_counts, per_image_summary, sample_metrics
 from .sweep import threshold_analysis
 
 
@@ -58,13 +59,14 @@ def _compare(paths: list[Path], runs: list[tuple], resamples: int, seed: int) ->
         if not labels:
             excluded_categories[category] = {"reason": "no_common_vocabulary"}
             continue
-        profiles, selections = [], []
+        profiles, selections, image_counts = [], [], []
         truth = [set(runs[0][1][row]["tags"][category]) for row in rows]
         for profile, run in zip(configs, runs, strict=True):
             lookup = {label: index for index, label in enumerate(run[2]["labels"])}
             columns = [lookup[label] for label in labels]
             threshold = profile["thresholds"][category]
             selections.append((run[3], columns, threshold))
+            image_counts.append(per_image_counts(run[3], rows, columns, labels, truth, threshold))
             profiles.append(
                 {
                     "run_id": run[0]["run_id"],
@@ -73,6 +75,7 @@ def _compare(paths: list[Path], runs: list[tuple], resamples: int, seed: int) ->
                     "failed": int((~run[4]).sum()),
                     "metrics": evaluate_columns(run[3], rows, columns, labels, truth, threshold),
                     "threshold_analysis": threshold_analysis(run[3], rows, columns, labels, truth),
+                    "per_image": per_image_summary(image_counts[-1], threshold),
                 }
             )
         categories[category] = {
@@ -82,7 +85,12 @@ def _compare(paths: list[Path], runs: list[tuple], resamples: int, seed: int) ->
             "runs": profiles,
         }
         if weights is not None:
-            statistics = weighted_metrics(selections, rows, labels, truth, weights)
+            statistics = [
+                {**values, **sample_metrics(counts, weights)}
+                for values, counts in zip(
+                    weighted_metrics(selections, rows, labels, truth, weights), image_counts, strict=True
+                )
+            ]
             categories[category]["bootstrap"] = summarize(
                 [profile["run_id"] for profile in profiles], statistics
             )

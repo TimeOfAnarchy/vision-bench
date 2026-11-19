@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from vision_bench import bootstrap
-from vision_bench.bootstrap import METRICS, resample_weights, summarize, weighted_metrics
+from vision_bench.bootstrap import resample_weights, summarize, weighted_metrics
 from vision_bench.metrics import evaluate_columns
 
 
@@ -44,12 +44,12 @@ def test_weighted_metrics_equal_metrics_on_duplicated_samples(monkeypatch):
         expected = flat(
             evaluate_columns(scores, rows[selected], columns, labels, [truth[i] for i in selected], 0.5)
         )
-        for name in METRICS:
-            value = statistics[name][index]
-            if expected[name] is None:
-                assert np.isnan(value)
+        assert set(statistics) == set(expected)
+        for name, value in expected.items():
+            if value is None:
+                assert np.isnan(statistics[name][index])
             else:
-                assert value == pytest.approx(expected[name], abs=1e-12)
+                assert statistics[name][index] == pytest.approx(value, abs=1e-12)
 
 
 def test_paired_differences_of_identical_runs_are_exactly_zero():

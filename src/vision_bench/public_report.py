@@ -17,6 +17,7 @@ NOTES = [
     "Paired quality compares the same successful samples and common category vocabulary. Full-truth recall/F1 also count source positives outside that vocabulary.",
     "Bootstrap intervals resample the paired images with replacement (same draw for every model) and cover sampling variation of this selection only, not label noise, other datasets or threshold choice. A difference interval that includes zero is not evidence of a real difference.",
     "Threshold-free rows use the same common outputs: best F1 picks its threshold on this evaluation set (an optimistic diagnostic, not a deployable operating point); precision at fixed recall compares models at matched operating points. Calibration error uses incomplete silver labels as the positive rate.",
+    "Per-image rows average each image once (micro metrics weight images by tag count). Recall @ top 10 counts annotated common-output positives among each image's ten highest scores; no-hit images have annotated common-output positives but none predicted at the profile threshold (images whose positives are all outside the common vocabulary are counted separately in the JSON).",
     "Native quality uses each model's complete vocabulary and its own successful samples; its denominators differ from the paired comparison.",
     "Silver source annotations are incomplete. Unlabeled predictions are not verified false positives; native output categories retain their original semantics.",
     "Latency covers decoding, preprocessing and inference, excluding integrity checks and loading. Timing uses each run's own successful warm rows, not the paired quality subset.",
@@ -351,12 +352,38 @@ def render(data: dict) -> tuple[str, str]:
                 for r in result["runs"]
             ],
         )
+        section(
+            f"Per-image quality: {category} (each image weighted once)",
+            [
+                "Model",
+                "Per-image F1 (full truth)",
+                "Per-image recall (full truth)",
+                "Per-image precision",
+                "Recall @ top 10",
+                "F1 p10 / median",
+                "No hits / images with common positives",
+            ],
+            [
+                [
+                    r["profile_id"],
+                    number(r["per_image"]["metrics"]["sample_f1_full_truth"]["value"]),
+                    number(r["per_image"]["metrics"]["sample_recall_full_truth"]["value"]),
+                    number(r["per_image"]["metrics"]["sample_precision"]["value"]),
+                    number(r["per_image"]["metrics"]["sample_recall_at_10"]["value"]),
+                    f"{number(r['per_image']['sample_f1_full_truth_quantiles']['p10'])} / "
+                    f"{number(r['per_image']['sample_f1_full_truth_quantiles']['p50'])}",
+                    f"{r['per_image']['images_with_common_positives_but_no_hits']} / "
+                    f"{r['per_image']['metrics']['sample_recall_representable']['images']}",
+                ]
+                for r in result["runs"]
+            ],
+        )
         if "bootstrap" not in result:
             continue
         profiles = {r["run_id"]: r["profile_id"] for r in result["runs"]}
         section(
             f"Paired differences: {category} (minus {profiles[result['bootstrap']['runs'][0]['run_id']]}, 95% bootstrap interval)",
-            ["Model", "Full-truth F1", "Common-output F1", "Common-output precision", "mAP"],
+            ["Model", "Full-truth F1", "Common-output F1", "Common-output precision", "mAP", "Per-image F1"],
             [
                 [profiles[r["run_id"]]]
                 + [
@@ -366,6 +393,7 @@ def render(data: dict) -> tuple[str, str]:
                         "micro_representable_f1",
                         "micro_representable_precision",
                         "mean_average_precision_supported",
+                        "sample_f1_full_truth",
                     )
                 ]
                 for r in result["bootstrap"]["differences_from_reference"]
