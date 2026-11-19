@@ -9,6 +9,16 @@ from . import __version__
 from .errors import BenchmarkError
 
 
+def add_bootstrap_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        "--bootstrap-resamples",
+        type=int,
+        default=1000,
+        help="Paired bootstrap resamples for 95%% intervals; 0 disables them",
+    )
+    command.add_argument("--bootstrap-seed", type=int, default=0, help="Seed for bootstrap resampling")
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="vision-bench", description="Independent local image tagger benchmarks"
@@ -48,6 +58,7 @@ def parser() -> argparse.ArgumentParser:
     compare.add_argument(
         "--output", type=Path, required=True, help="New JSON report; existing files are never replaced"
     )
+    add_bootstrap_arguments(compare)
     precision = modes.add_parser(
         "precision", help="Compare two precision/export variants at identical operating points"
     )
@@ -67,6 +78,7 @@ def parser() -> argparse.ArgumentParser:
         default="",
         help="Explicit author annotation for historical runs; not measured hardware",
     )
+    add_bootstrap_arguments(publication)
     vlm = modes.add_parser("vlm-run", help="Run a versioned image-chat task against an external server")
     vlm.add_argument("--dataset", type=Path, required=True)
     vlm.add_argument("--task", type=Path, required=True)
@@ -164,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
                 dataset_description=args.dataset_description,
                 hardware_note=args.hardware_note,
                 cache_dir=args.cache_dir,
+                bootstrap_resamples=args.bootstrap_resamples,
+                bootstrap_seed=args.bootstrap_seed,
             )
             result = {"report": str(path / "index.html"), "directory": str(path)}
         elif args.command == "vlm-review":
@@ -174,7 +188,12 @@ def main(argv: list[str] | None = None) -> int:
             if args.command == "compare":
                 from .compare import compare_runs
 
-                result = compare_runs(args.runs, cache_dir=args.cache_dir)
+                result = compare_runs(
+                    args.runs,
+                    cache_dir=args.cache_dir,
+                    bootstrap_resamples=args.bootstrap_resamples,
+                    bootstrap_seed=args.bootstrap_seed,
+                )
             elif args.command == "precision":
                 from .precision import compare_precision
 

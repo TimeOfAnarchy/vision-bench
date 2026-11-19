@@ -92,6 +92,22 @@ include out-of-vocabulary positive labels; mAP is over represented labels with
 positive support. Native output categories retain their original semantics.
 Operating thresholds are fixed profile inputs, not fitted on the evaluation set.
 
+Each compared category also gets a `bootstrap` block: 95% percentile intervals
+for every run's micro, macro-F1 and mAP metrics, and for each run's difference
+from the first listed run (the reference). Every resample draws the paired
+successful samples with replacement and applies the same draw to every run, so
+differences stay paired. `estimate` is the observed value on all paired samples.
+A difference interval that includes zero means this selection does not separate
+the models. Intervals reflect only which images were selected: labels,
+thresholds and models stay fixed, and label noise is not covered.
+
+```console
+vision-bench compare ./runs/model-a ./runs/model-b --output ./comparison.json --bootstrap-resamples 2000 --bootstrap-seed 1
+```
+
+The default is 1,000 resamples with seed 0; `--bootstrap-resamples 0` disables
+intervals. The seed and resample count are recorded in the comparison.
+
 Latency includes decoding, preprocessing and inference, excludes integrity
 checks and model loading. The first five selected rows are excluded from the
 warm summary by default. GPU memory is unavailable unless sampling is requested

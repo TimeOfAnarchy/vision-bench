@@ -26,8 +26,9 @@ server.
 
 - **Compare complete predictions.** Preserve the full model vocabulary and scores;
   recompute metrics and compare runs without loading images or models again.
-- **Make comparisons explicit.** Verify input hashes, pair successful samples and
-  separate common-vocabulary quality from each model's native vocabulary coverage.
+- **Make comparisons explicit.** Verify input hashes, pair successful samples,
+  report paired bootstrap intervals for metric differences and separate
+  common-vocabulary quality from each model's native vocabulary coverage.
 - **Measure practical pipelines.** Record decode/preprocessing/inference latency,
   model loading and optional Windows GPU process-memory samples.
 - **Keep failures visible.** Failed samples have a separate mask and diagnostic

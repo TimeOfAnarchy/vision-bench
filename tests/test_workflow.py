@@ -68,6 +68,17 @@ def test_compare_refuses_dataset_drift_and_reports_common_character_metrics(loca
     assert comparison["paired_successful"] == 3
     assert comparison["categories"]["character"]["label_count"] == 1
     assert comparison["categories"]["general"]["runs"][0]["metrics"]["coverage"]["oov_occurrences"] == 3
+    assert comparison["bootstrap"]["reference_run_id"] == "model-a"
+    general = comparison["categories"]["general"]
+    observed = general["bootstrap"]["runs"][1]["metrics"]["micro_full_truth_f1"]
+    assert observed["estimate"] == general["runs"][1]["metrics"]["micro_full_truth"]["f1"]
+    assert observed["valid_resamples"] == 1000 and observed["low"] <= observed["high"]
+    assert general["bootstrap"]["differences_from_reference"][0]["run_id"] == "model-b"
+    disabled = compare_runs([first, second], bootstrap_resamples=0)
+    assert disabled["bootstrap"] == {"status": "disabled"}
+    assert "bootstrap" not in disabled["categories"]["general"]
+    with pytest.raises(BenchmarkError, match="Bootstrap resamples"):
+        compare_runs([first, second], bootstrap_resamples=-1)
     limited = run(values, run_id="prefix", limit=1)
     with pytest.raises(BenchmarkError, match="different dataset subsets"):
         compare_runs([first, limited])

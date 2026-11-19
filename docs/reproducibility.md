@@ -42,7 +42,9 @@ separately reviewed; failure/unknown/abstention states remain explicit outcomes.
 
 `recompute` verifies saved artifacts and compares metrics exactly without
 inference or editing the original run. `compare` uses paired successful samples
-and common vocabulary; keep denominators visible. `precision` requires aligned
+and common vocabulary; keep denominators visible. Report its paired bootstrap
+intervals with differences: they cover image-selection variation only, not label
+noise or other datasets. `precision` requires aligned
 export variants and reports numerical errors and threshold flips. Keep raw
 shards, error records and original artifacts when publishing a derived report.
 

@@ -15,6 +15,7 @@ from .io import file_hash, read_object, write_json
 
 NOTES = [
     "Paired quality compares the same successful samples and common category vocabulary. Full-truth recall/F1 also count source positives outside that vocabulary.",
+    "Bootstrap intervals resample the paired images with replacement (same draw for every model) and cover sampling variation of this selection only, not label noise, other datasets or threshold choice. A difference interval that includes zero is not evidence of a real difference.",
     "Native quality uses each model's complete vocabulary and its own successful samples; its denominators differ from the paired comparison.",
     "Silver source annotations are incomplete. Unlabeled predictions are not verified false positives; native output categories retain their original semantics.",
     "Latency covers decoding, preprocessing and inference, excluding integrity checks and loading. Timing uses each run's own successful warm rows, not the paired quality subset.",
@@ -81,6 +82,8 @@ def export_report(
     dataset_description: str = "",
     hardware_note: str = "",
     cache_dir: Path | None = None,
+    bootstrap_resamples: int = 1000,
+    bootstrap_seed: int = 0,
 ) -> Path:
     if not title.strip() or len(title) > 160:
         raise BenchmarkError("Report title must contain 1-160 characters.")
@@ -91,7 +94,9 @@ def export_report(
     output = output.resolve()
     if output.exists():
         raise BenchmarkError("Report output must be a new directory.")
-    comparison = compare_runs(paths, cache_dir=cache_dir)
+    comparison = compare_runs(
+        paths, cache_dir=cache_dir, bootstrap_resamples=bootstrap_resamples, bootstrap_seed=bootstrap_seed
+    )
     for category in comparison["categories"].values():
         for row in category["runs"]:
             row["metrics"] = aggregate_quality(row["metrics"])
@@ -245,6 +250,11 @@ def render(data: dict) -> tuple[str, str]:
     def number(value):
         return "n/a" if value is None else f"{value:.4f}"
 
+    def interval(value):
+        if value["estimate"] is None or value["low"] is None:
+            return "n/a"
+        return f"{value['estimate']:+.4f} [{value['low']:+.4f}, {value['high']:+.4f}]"
+
     def table(headers, rows):
         head = "<tr>" + "".join(f"<th scope='col'>{text(v)}</th>" for v in headers) + "</tr>"
         body = "".join("<tr>" + "".join(f"<td>{text(v)}</td>" for v in row) + "</tr>" for row in rows)
@@ -311,6 +321,26 @@ def render(data: dict) -> tuple[str, str]:
                     number(r["metrics"]["mean_average_precision_supported"]),
                 ]
                 for r in result["runs"]
+            ],
+        )
+        if "bootstrap" not in result:
+            continue
+        profiles = {r["run_id"]: r["profile_id"] for r in result["runs"]}
+        section(
+            f"Paired differences: {category} (minus {profiles[result['bootstrap']['runs'][0]['run_id']]}, 95% bootstrap interval)",
+            ["Model", "Full-truth F1", "Common-output F1", "Common-output precision", "mAP"],
+            [
+                [profiles[r["run_id"]]]
+                + [
+                    interval(r["metrics"][name])
+                    for name in (
+                        "micro_full_truth_f1",
+                        "micro_representable_f1",
+                        "micro_representable_precision",
+                        "mean_average_precision_supported",
+                    )
+                ]
+                for r in result["bootstrap"]["differences_from_reference"]
             ],
         )
     section(
