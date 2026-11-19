@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 
 from .errors import BenchmarkError
+from .metrics import truth_block
 
 CONFIDENCE = 0.95
 CUTOFF_COLUMNS = 2048
@@ -97,9 +98,7 @@ def weighted_metrics(
     ]
     for start in range(0, len(labels), block_size):
         stop = min(start + block_size, len(labels))
-        truth = np.asarray(
-            [[label in values for label in labels[start:stop]] for values in truth_sets], dtype=np.bool_
-        ).reshape(len(rows), stop - start)
+        truth = truth_block(labels[start:stop], truth_sets)
         support = weights @ truth.astype(np.float64)
         for (scores, columns, threshold), totals in zip(runs, state, strict=True):
             block = np.asarray(scores[np.ix_(rows, columns[start:stop])], dtype=np.float32)

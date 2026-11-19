@@ -16,6 +16,7 @@ from .io import file_hash, read_object, write_json
 NOTES = [
     "Paired quality compares the same successful samples and common category vocabulary. Full-truth recall/F1 also count source positives outside that vocabulary.",
     "Bootstrap intervals resample the paired images with replacement (same draw for every model) and cover sampling variation of this selection only, not label noise, other datasets or threshold choice. A difference interval that includes zero is not evidence of a real difference.",
+    "Threshold-free rows use the same common outputs: best F1 picks its threshold on this evaluation set (an optimistic diagnostic, not a deployable operating point); precision at fixed recall compares models at matched operating points. Calibration error uses incomplete silver labels as the positive rate.",
     "Native quality uses each model's complete vocabulary and its own successful samples; its denominators differ from the paired comparison.",
     "Silver source annotations are incomplete. Unlabeled predictions are not verified false positives; native output categories retain their original semantics.",
     "Latency covers decoding, preprocessing and inference, excluding integrity checks and loading. Timing uses each run's own successful warm rows, not the paired quality subset.",
@@ -100,6 +101,8 @@ def export_report(
     for category in comparison["categories"].values():
         for row in category["runs"]:
             row["metrics"] = aggregate_quality(row["metrics"])
+            for curve in ("true_positive", "unlabeled_positive"):
+                row["threshold_analysis"].pop(curve)
     runs = []
     for path in paths:
         manifest, profile, metrics = [
@@ -250,6 +253,9 @@ def render(data: dict) -> tuple[str, str]:
     def number(value):
         return "n/a" if value is None else f"{value:.4f}"
 
+    def point(value, name):
+        return "n/a" if value is None else f"{value[name]:.4f} ({value['threshold']:.3f})"
+
     def interval(value):
         if value["estimate"] is None or value["low"] is None:
             return "n/a"
@@ -319,6 +325,28 @@ def render(data: dict) -> tuple[str, str]:
                     number(r["metrics"]["micro_representable"]["f1"]),
                     number(r["metrics"]["micro_representable"]["precision"]),
                     number(r["metrics"]["mean_average_precision_supported"]),
+                ]
+                for r in result["runs"]
+            ],
+        )
+        section(
+            f"Threshold-free quality: {category} (common outputs, micro)",
+            [
+                "Model",
+                "Best F1 (threshold)",
+                "Precision @ recall 0.6",
+                "Recall @ precision 0.6",
+                "Calibration error (scores >= 0.1)",
+            ],
+            [
+                [
+                    r["profile_id"],
+                    point(r["threshold_analysis"]["best_f1"], "f1"),
+                    point(r["threshold_analysis"]["precision_at_recall"]["0.6"], "precision"),
+                    point(r["threshold_analysis"]["recall_at_precision"]["0.6"], "recall"),
+                    number(
+                        r["threshold_analysis"]["calibration"]["upper_bins"]["expected_calibration_error"]
+                    ),
                 ]
                 for r in result["runs"]
             ],

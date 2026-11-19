@@ -85,6 +85,9 @@ def test_public_export_retains_provenance_but_not_private_artifacts(report_runs,
     assert "each model's complete vocabulary" in readme
     assert "Paired differences: general (minus " in readme
     assert data["comparison"]["bootstrap"]["resamples"] == 1000
+    assert "Threshold-free quality: general" in readme
+    published = data["comparison"]["categories"]["general"]["runs"][0]["threshold_analysis"]
+    assert "true_positive" not in published and "best_f1" in published
     assert "&lt;script&gt;" in readme
     assert "GPU sampling status" in (output / "index.html").read_text()
     for line in (output / "SHA256SUMS").read_text().splitlines():

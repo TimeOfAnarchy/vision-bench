@@ -10,6 +10,7 @@ from .bootstrap import CONFIDENCE, resample_weights, summarize, weighted_metrics
 from .errors import BenchmarkError
 from .io import content_hash, read_object
 from .metrics import evaluate_columns
+from .sweep import threshold_analysis
 
 
 def compare_runs(
@@ -61,16 +62,17 @@ def _compare(paths: list[Path], runs: list[tuple], resamples: int, seed: int) ->
         truth = [set(runs[0][1][row]["tags"][category]) for row in rows]
         for profile, run in zip(configs, runs, strict=True):
             lookup = {label: index for index, label in enumerate(run[2]["labels"])}
-            selection = (run[3], [lookup[label] for label in labels], profile["thresholds"][category])
-            selections.append(selection)
-            values = evaluate_columns(selection[0], rows, selection[1], labels, truth, selection[2])
+            columns = [lookup[label] for label in labels]
+            threshold = profile["thresholds"][category]
+            selections.append((run[3], columns, threshold))
             profiles.append(
                 {
                     "run_id": run[0]["run_id"],
                     "profile_id": profile["id"],
                     "successful": int(run[4].sum()),
                     "failed": int((~run[4]).sum()),
-                    "metrics": values,
+                    "metrics": evaluate_columns(run[3], rows, columns, labels, truth, threshold),
+                    "threshold_analysis": threshold_analysis(run[3], rows, columns, labels, truth),
                 }
             )
         categories[category] = {

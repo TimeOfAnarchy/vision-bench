@@ -21,6 +21,13 @@ def counts_metrics(tp: int, fp: int, fn: int) -> dict:
     }
 
 
+def truth_block(labels: list[str], truth_sets: list[set[str]]) -> np.ndarray:
+    """Boolean samples x labels annotation matrix."""
+    return np.asarray(
+        [[label in values for label in labels] for values in truth_sets], dtype=np.bool_
+    ).reshape(len(truth_sets), len(labels))
+
+
 def average_precision(truth: np.ndarray, scores: np.ndarray) -> float | None:
     if not truth.any():
         return None
@@ -57,9 +64,7 @@ def evaluate_columns(
         block = scores[np.ix_(rows, columns[start:stop])]
         if not np.isfinite(block).all() or np.any((block < 0) | (block > 1)):
             raise BenchmarkError("Invalid probabilities in metric block.")
-        truth = np.asarray(
-            [[label in values for label in labels[start:stop]] for values in truth_sets], dtype=np.bool_
-        ).reshape(len(rows), stop - start)
+        truth = truth_block(labels[start:stop], truth_sets)
         predicted = block >= threshold
         tp[start:stop] = np.count_nonzero(truth & predicted, axis=0)
         fp[start:stop] = np.count_nonzero(~truth & predicted, axis=0)

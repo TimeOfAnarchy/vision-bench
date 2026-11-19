@@ -108,6 +108,23 @@ vision-bench compare ./runs/model-a ./runs/model-b --output ./comparison.json --
 The default is 1,000 resamples with seed 0; `--bootstrap-resamples 0` disables
 intervals. The seed and resample count are recorded in the comparison.
 
+Fixed-threshold F1 mixes ranking quality with each profile's threshold choice.
+Each compared run therefore also has a `threshold_analysis` over the same common
+outputs and paired samples, micro-averaged over sample-label pairs:
+
+- `true_positive` and `unlabeled_positive` at every threshold from 0 to 1 in
+  steps of 0.001 (`score >= threshold` in float32). The index of a profile
+  threshold reproduces its fixed-threshold micro counts.
+- `precision_at_recall` and `recall_at_precision` at 0.5/0.6/0.7/0.8 compare
+  models at matched operating points; `null` means the target is unreachable.
+- `best_f1` chooses its threshold on the evaluation set itself. It shows how much
+  a threshold change could gain, not a deployable operating point.
+- `calibration` bins scores into ten equal-width bins with mean score and
+  annotated positive rate, plus expected calibration error. Most pairs score
+  near zero, so the overall error is tiny; `upper_bins` repeats it for scores
+  >= 0.1, where tags are actually decided. Incomplete silver labels understate
+  the true positive rate, so treat calibration as a relative signal.
+
 Latency includes decoding, preprocessing and inference, excludes integrity
 checks and model loading. The first five selected rows are excluded from the
 warm summary by default. GPU memory is unavailable unless sampling is requested

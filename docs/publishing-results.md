@@ -2,7 +2,8 @@
 
 Each tagger `run` freezes a dataset selection, model profile, complete scores,
 outcomes and runtime metadata. `compare` computes paired quality on common
-category vocabularies, with paired bootstrap intervals for each model's difference
+category vocabularies, threshold-free operating points and calibration, with
+paired bootstrap intervals for each model's difference
 from the first listed run (`--bootstrap-resamples`/`--bootstrap-seed` apply to
 `export-report` too). `export-report` turns two or more completed compatible
 runs into a portable, aggregate publication:
