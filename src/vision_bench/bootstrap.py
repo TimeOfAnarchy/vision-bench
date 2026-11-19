@@ -26,11 +26,13 @@ def resample_weights(count: int, resamples: int, seed: int) -> np.ndarray:
     return np.vstack([np.ones((1, count)), counts]).astype(np.float64)
 
 
-def _divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
+def safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
     return np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator > 0)
 
 
-def _block_ap(truth: np.ndarray, block: np.ndarray, weights: np.ndarray, support: np.ndarray) -> np.ndarray:
+def block_average_precision(
+    truth: np.ndarray, block: np.ndarray, weights: np.ndarray, support: np.ndarray
+) -> np.ndarray:
     """Tie-grouped AP per weight row and label column; NaN where a label has no positive weight.
 
     Recall rises only at scores held by an observed positive, so precision is needed
@@ -47,10 +49,10 @@ def _block_ap(truth: np.ndarray, block: np.ndarray, weights: np.ndarray, support
         starts = np.flatnonzero(np.r_[True, owners[1:] != owners[:-1]])
         gains = np.diff(hits, axis=1, prepend=0.0)
         gains[:, starts] = hits[:, starts]
-        weighted = np.add.reduceat(gains * _divide(hits, seen), starts, axis=1)
+        weighted = np.add.reduceat(gains * safe_divide(hits, seen), starts, axis=1)
         labels = owners[starts]
         positives = support[:, labels]
-        ap[:, labels] = np.where(positives > 0, _divide(weighted, positives), np.nan)
+        ap[:, labels] = np.where(positives > 0, safe_divide(weighted, positives), np.nan)
 
     group, width = [], 0
     for label in np.flatnonzero(truth.any(axis=0)):
@@ -101,9 +103,9 @@ def weighted_metrics(
             totals["fp"] += fp.sum(axis=1)
             totals["fn"] += fn.sum(axis=1)
             present = support > 0
-            totals["macro_sum"] += np.where(present, _divide(2 * tp, 2 * tp + fp + fn), 0.0).sum(axis=1)
+            totals["macro_sum"] += np.where(present, safe_divide(2 * tp, 2 * tp + fp + fn), 0.0).sum(axis=1)
             totals["macro_count"] += present.sum(axis=1)
-            ap = _block_ap(truth, block, weights, support)
+            ap = block_average_precision(truth, block, weights, support)
             totals["ap_sum"] += np.nansum(ap, axis=1)
             totals["ap_count"] += np.count_nonzero(~np.isnan(ap), axis=1)
     missing = weights @ oov
@@ -113,16 +115,16 @@ def weighted_metrics(
         full_fn = fn + missing
         results.append(
             {
-                "micro_full_truth_f1": _divide(2 * tp, 2 * tp + fp + full_fn),
-                "micro_full_truth_recall": _divide(tp, tp + full_fn),
-                "micro_representable_f1": _divide(2 * tp, 2 * tp + fp + fn),
-                "micro_representable_precision": _divide(tp, tp + fp),
-                "micro_representable_recall": _divide(tp, tp + fn),
+                "micro_full_truth_f1": safe_divide(2 * tp, 2 * tp + fp + full_fn),
+                "micro_full_truth_recall": safe_divide(tp, tp + full_fn),
+                "micro_representable_f1": safe_divide(2 * tp, 2 * tp + fp + fn),
+                "micro_representable_precision": safe_divide(tp, tp + fp),
+                "micro_representable_recall": safe_divide(tp, tp + fn),
                 "macro_f1_supported": np.where(
-                    totals["macro_count"] > 0, _divide(totals["macro_sum"], totals["macro_count"]), np.nan
+                    totals["macro_count"] > 0, safe_divide(totals["macro_sum"], totals["macro_count"]), np.nan
                 ),
                 "mean_average_precision_supported": np.where(
-                    totals["ap_count"] > 0, _divide(totals["ap_sum"], totals["ap_count"]), np.nan
+                    totals["ap_count"] > 0, safe_divide(totals["ap_sum"], totals["ap_count"]), np.nan
                 ),
             }
         )

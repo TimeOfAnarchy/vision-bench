@@ -105,6 +105,19 @@ def parser() -> argparse.ArgumentParser:
     )
     vlm_review.add_argument("runs", type=Path, nargs="+")
     vlm_review.add_argument("--output", type=Path, required=True)
+    regressions = modes.add_parser(
+        "regressions", help="Find tags that significantly regressed or improved between two runs"
+    )
+    regressions.add_argument("baseline", type=Path)
+    regressions.add_argument("candidate", type=Path)
+    regressions.add_argument("--output", type=Path, required=True)
+    regressions.add_argument(
+        "--min-support", type=int, default=5, help="Annotated images needed to test a tag"
+    )
+    regressions.add_argument(
+        "--fdr", type=float, default=0.05, help="Benjamini-Hochberg false discovery rate"
+    )
+    add_bootstrap_arguments(regressions)
     audit = modes.add_parser(
         "label-audit", help="Export a uniform sample of unlabeled tagger predictions for human review"
     )
@@ -198,6 +211,36 @@ def main(argv: list[str] | None = None) -> int:
             from .vlm_results import export_vlm_review
 
             result = {"review": str(args.output), "samples": export_vlm_review(args.runs, args.output)}
+        elif args.command == "regressions":
+            from .regressions import label_regressions
+
+            report = label_regressions(
+                args.baseline,
+                args.candidate,
+                resamples=args.bootstrap_resamples,
+                seed=args.bootstrap_seed,
+                min_support=args.min_support,
+                fdr=args.fdr,
+                cache_dir=args.cache_dir,
+            )
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            with args.output.open("x", encoding="utf-8") as output:
+                json.dump(report, output, ensure_ascii=False, indent=2, allow_nan=False)
+            result = {
+                "report": str(args.output),
+                "categories": {
+                    category: {
+                        "ap": values["summary"]["ap"],
+                        "f1": values["summary"]["f1"],
+                        "worst_ap": [
+                            {"label": entry["label"], "difference": entry["ap_difference"]["estimate"]}
+                            for entry in values["labels"]
+                            if entry["ap_difference"]["verdict"] == "regression"
+                        ][:5],
+                    }
+                    for category, values in report["categories"].items()
+                },
+            }
         elif args.command == "label-audit":
             from .label_audit import export_label_audit
 

@@ -149,6 +149,33 @@ macro-F1, mAP and micro precision/recall/F1 per stratum. Strata come from the
 shared annotations, so they hold the same labels for every compared run. Labels
 without annotated positives, and their unlabeled predictions, are in no stratum.
 
+## Find tag regressions between checkpoints
+
+Aggregate metrics can hide tags that a new checkpoint broke. `regressions`
+compares a baseline and a candidate run tag by tag, on paired successful samples
+and common outputs:
+
+```console
+vision-bench regressions ./runs/checkpoint-old ./runs/checkpoint-new --output ./regressions.json
+```
+
+For each tag with annotated positives it reports support, both runs' AP and F1
+(each at its own profile threshold) and the candidate-minus-baseline difference
+with a paired bootstrap percentile interval. Tags with at least `--min-support`
+annotated images (default 5) are tested: a two-sided p-value comes from the
+bootstrap standard error, and Benjamini-Hochberg q-values control the false
+discovery rate (`--fdr`, default 0.05) across tags, separately for AP and F1.
+A tag is a `regression` or `improvement` only when its q-value is within the
+rate and its interval excludes zero; otherwise it is `no_evidence`, and rarer
+tags are `untested` but still listed with their observed difference. Tags are
+sorted from the largest AP drop. Flagged tags include up to three annotated
+images with the largest score drop and unlabeled images with the largest rise.
+
+With roughly a thousand images, a single tag needs a large change to reach a
+verdict; `no_evidence` is not proof that a tag is unchanged. The p-values are
+approximate for small support, and silver labels apply as everywhere else.
+`--bootstrap-resamples` and `--bootstrap-seed` work as for `compare`.
+
 ## Audit silver labels
 
 Every metric above counts an unlabeled prediction as an error, although many are
