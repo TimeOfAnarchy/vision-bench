@@ -29,12 +29,16 @@ server.
 - **Make comparisons explicit.** Verify input hashes, pair successful samples,
   report paired bootstrap intervals for metric differences and separate
   common-vocabulary quality from each model's native vocabulary coverage.
+- **Inspect operating thresholds.** Compare score sweeps and per-image quality.
+  Fit category or per-tag thresholds on a separate calibration run, and align
+  tag names with an optional alias mapping.
 - **Measure practical pipelines.** Record decode/preprocessing/inference latency,
   model loading and optional Windows GPU process-memory samples.
 - **Catch tag regressions.** Flag tags whose AP or F1 changed between two
   checkpoints, with paired bootstrap intervals and false-discovery control.
 - **Check silver labels.** Export a uniform sample of unlabeled predictions for
-  review and estimate audited precision from the verdicts.
+  review and estimate audited precision from the verdicts. Export difficult
+  images by model disagreement or low per-image F1 for qualitative review.
 - **Keep failures visible.** Failed samples have a separate mask and diagnostic
   records. Existing run IDs and output files are never silently reused.
 
@@ -67,7 +71,9 @@ silver labels; upstream image availability and model access requirements apply.
 
 ## Try the workflow without model downloads
 
-Python 3.11+ is required. Clone the repository and create an environment:
+Python 3.11+ is required. The [latest release](https://github.com/TimeOfAnarchy/vision-bench/releases/latest)
+provides a wheel, source archive and SHA-256 checksums. To run the generated
+CPU example from source, clone the repository and create an environment:
 
 ```console
 git clone https://github.com/TimeOfAnarchy/vision-bench.git
