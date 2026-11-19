@@ -112,6 +112,37 @@ def evaluate_columns(
     }
 
 
+SUPPORT_STRATA = ((1, 1), (2, 4), (5, 19), (20, 99), (100, None))
+
+
+def support_strata(per_label: list[dict]) -> list[dict]:
+    """Per-label metrics grouped by how many evaluated samples carry each label."""
+    result = []
+    for low, high in SUPPORT_STRATA:
+        members = [
+            value
+            for value in per_label
+            if value["support"] >= low and (high is None or value["support"] <= high)
+        ]
+        ap = [value["ap"] for value in members]
+        result.append(
+            {
+                "support_min": low,
+                "support_max": high,
+                "label_count": len(members),
+                "positive_occurrences": sum(value["support"] for value in members),
+                "macro_f1": float(np.mean([value["f1"] for value in members])) if members else None,
+                "mean_average_precision": float(np.mean(ap)) if ap else None,
+                "micro": counts_metrics(
+                    sum(value["true_positive"] for value in members),
+                    sum(value["unlabeled_positive"] for value in members),
+                    sum(value["false_negative"] for value in members),
+                ),
+            }
+        )
+    return result
+
+
 def performance_summary(records: list[dict], warmup: int, *, gpu_memory: dict | None = None) -> dict:
     successful = [record for record in records if record["outcome"] == "ok"]
     warm = [record for record in successful if record["row"] >= warmup]

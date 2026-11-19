@@ -70,6 +70,7 @@ def test_compare_refuses_dataset_drift_and_reports_common_character_metrics(loca
     assert comparison["categories"]["general"]["runs"][0]["metrics"]["coverage"]["oov_occurrences"] == 3
     assert comparison["bootstrap"]["reference_run_id"] == "model-a"
     for entry in comparison["categories"]["general"]["runs"]:
+        assert sum(item["label_count"] for item in entry["by_support"]) == len(entry["metrics"]["per_label"])
         fixed, sweep = entry["metrics"], entry["threshold_analysis"]
         index = round(fixed["threshold"] * 1000)
         assert sweep["true_positive"][index] == fixed["micro_representable"]["true_positive"]

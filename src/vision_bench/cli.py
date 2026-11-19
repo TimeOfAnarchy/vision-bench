@@ -105,6 +105,20 @@ def parser() -> argparse.ArgumentParser:
     )
     vlm_review.add_argument("runs", type=Path, nargs="+")
     vlm_review.add_argument("--output", type=Path, required=True)
+    audit = modes.add_parser(
+        "label-audit", help="Export a uniform sample of unlabeled tagger predictions for human review"
+    )
+    audit.add_argument("runs", type=Path, nargs="+")
+    audit.add_argument("--category", required=True)
+    audit.add_argument("--output", type=Path, required=True, help="New JSONL review packet")
+    audit.add_argument("--per-run", type=int, default=100, help="Unlabeled predictions sampled per run")
+    audit.add_argument("--seed", type=int, default=0)
+    audit_score = modes.add_parser(
+        "label-audit-score", help="Verify a reviewed label audit and estimate audited precision"
+    )
+    audit_score.add_argument("audit", type=Path)
+    audit_score.add_argument("runs", type=Path, nargs="+", help="The exported runs, in export order")
+    audit_score.add_argument("--output", type=Path, required=True)
     return root
 
 
@@ -184,6 +198,32 @@ def main(argv: list[str] | None = None) -> int:
             from .vlm_results import export_vlm_review
 
             result = {"review": str(args.output), "samples": export_vlm_review(args.runs, args.output)}
+        elif args.command == "label-audit":
+            from .label_audit import export_label_audit
+
+            count = export_label_audit(
+                args.runs,
+                category=args.category,
+                output=args.output,
+                per_run=args.per_run,
+                seed=args.seed,
+                cache_dir=args.cache_dir,
+            )
+            result = {"review": str(args.output), "items": count}
+        elif args.command == "label-audit-score":
+            from .label_audit import score_label_audit
+
+            scored = score_label_audit(args.audit, args.runs, cache_dir=args.cache_dir)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            with args.output.open("x", encoding="utf-8") as output:
+                json.dump(scored, output, ensure_ascii=False, indent=2, allow_nan=False)
+            result = {
+                "result": str(args.output),
+                "runs": {
+                    run["run_id"]: run["audited_precision"] and run["audited_precision"]["estimate"]
+                    for run in scored["runs"]
+                },
+            }
         else:
             if args.command == "compare":
                 from .compare import compare_runs

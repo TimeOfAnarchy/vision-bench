@@ -142,6 +142,41 @@ closer to what one tagged image looks like:
 
 The image-averaged metrics also get paired bootstrap intervals and differences.
 
+Macro-F1 and mAP average labels equally, so labels seen once or twice make them
+noisy. `by_support` regroups each run's per-label results by how many paired
+images carry the label (1, 2-4, 5-19, 20-99, 100+): label and occurrence counts,
+macro-F1, mAP and micro precision/recall/F1 per stratum. Strata come from the
+shared annotations, so they hold the same labels for every compared run. Labels
+without annotated positives, and their unlabeled predictions, are in no stratum.
+
+## Audit silver labels
+
+Every metric above counts an unlabeled prediction as an error, although many are
+tags the source simply omitted. `label-audit` exports a uniform random sample of
+unlabeled predictions per run (common outputs, profile thresholds, paired
+samples) as a JSONL review packet; `label-audit-score` turns reviewed verdicts
+into an audited precision estimate:
+
+```console
+vision-bench label-audit ./runs/model-a ./runs/model-b --category general --per-run 100 --output ./audit.jsonl
+vision-bench label-audit-score ./audit.jsonl ./runs/model-a ./runs/model-b --output ./audit-result.json
+```
+
+Each line names the image, label, annotated tags, every run's score and the runs
+whose sample includes it. A prediction sampled by several runs appears once, so
+one verdict serves all of them. Set `human_review.verdict` to `present`,
+`absent` or `unsure` (or leave it `null`). Lines are shuffled: reviewing any
+prefix keeps each run's reviewed subset uniform.
+
+Scoring rebuilds the sample from the runs, seed and category and refuses a
+packet whose items differ, so pass the same runs in export order. Per run it
+reports verdict counts, the present rate among `present`/`absent` verdicts
+(Wilson 95% interval; `unsure` and pending lines are excluded), silver precision
+and audited precision `(TP + unlabeled x present rate) / predicted`. Recall
+cannot be corrected this way: tags missed by both the source and the model stay
+unknown. The packet contains local image paths and sample identifiers; review it
+locally and treat verdicts as one reviewer's judgement.
+
 Latency includes decoding, preprocessing and inference, excludes integrity
 checks and model loading. The first five selected rows are excluded from the
 warm summary by default. GPU memory is unavailable unless sampling is requested

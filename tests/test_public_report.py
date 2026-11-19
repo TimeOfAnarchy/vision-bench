@@ -87,6 +87,7 @@ def test_public_export_retains_provenance_but_not_private_artifacts(report_runs,
     assert data["comparison"]["bootstrap"]["resamples"] == 1000
     assert "Threshold-free quality: general" in readme
     assert "Per-image quality: general" in readme
+    assert "Quality by label frequency: general" in readme
     published = data["comparison"]["categories"]["general"]["runs"][0]["threshold_analysis"]
     assert "true_positive" not in published and "best_f1" in published
     assert "&lt;script&gt;" in readme

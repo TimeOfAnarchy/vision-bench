@@ -31,6 +31,8 @@ server.
   common-vocabulary quality from each model's native vocabulary coverage.
 - **Measure practical pipelines.** Record decode/preprocessing/inference latency,
   model loading and optional Windows GPU process-memory samples.
+- **Check silver labels.** Export a uniform sample of unlabeled predictions for
+  review and estimate audited precision from the verdicts.
 - **Keep failures visible.** Failed samples have a separate mask and diagnostic
   records. Existing run IDs and output files are never silently reused.
 

@@ -36,6 +36,9 @@ evidence; the CPU CI suite does not validate them. See [VLM constraints](vlm.md)
 
 Incomplete source tags remain silver labels. Missing tags count as negatives
 for the stated metric, without proving that unlabeled predictions are incorrect.
+`label-audit` estimates how many of them are actually present from a reviewed
+uniform sample; publish the sample size and verdict counts with any audited
+precision.
 Synthetic example labels are algorithmic, not human annotations. Native output
 categories retain their original semantics. Review exports are proposals until
 separately reviewed; failure/unknown/abstention states remain explicit outcomes.

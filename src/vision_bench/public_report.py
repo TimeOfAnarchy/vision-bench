@@ -18,6 +18,7 @@ NOTES = [
     "Bootstrap intervals resample the paired images with replacement (same draw for every model) and cover sampling variation of this selection only, not label noise, other datasets or threshold choice. A difference interval that includes zero is not evidence of a real difference.",
     "Threshold-free rows use the same common outputs: best F1 picks its threshold on this evaluation set (an optimistic diagnostic, not a deployable operating point); precision at fixed recall compares models at matched operating points. Calibration error uses incomplete silver labels as the positive rate.",
     "Per-image rows average each image once (micro metrics weight images by tag count). Recall @ top 10 counts annotated common-output positives among each image's ten highest scores; no-hit images have annotated common-output positives but none predicted at the profile threshold (images whose positives are all outside the common vocabulary are counted separately in the JSON).",
+    "Label-frequency strata group common-output labels by how many paired images carry them; rare strata average few noisy labels. Labels without annotated positives, and their unlabeled predictions, are not in any stratum.",
     "Native quality uses each model's complete vocabulary and its own successful samples; its denominators differ from the paired comparison.",
     "Silver source annotations are incomplete. Unlabeled predictions are not verified false positives; native output categories retain their original semantics.",
     "Latency covers decoding, preprocessing and inference, excluding integrity checks and loading. Timing uses each run's own successful warm rows, not the paired quality subset.",
@@ -348,6 +349,25 @@ def render(data: dict) -> tuple[str, str]:
                     number(
                         r["threshold_analysis"]["calibration"]["upper_bins"]["expected_calibration_error"]
                     ),
+                ]
+                for r in result["runs"]
+            ],
+        )
+        strata = result["runs"][0]["by_support"]
+        section(
+            f"Quality by label frequency: {category} (mAP / macro-F1 per support stratum)",
+            ["Model"]
+            + [
+                f"Support {item['support_min']}"
+                + ("+" if item["support_max"] is None else f"-{item['support_max']}")
+                + f" ({item['label_count']} labels)"
+                for item in strata
+            ],
+            [
+                [r["profile_id"]]
+                + [
+                    f"{number(item['mean_average_precision'])} / {number(item['macro_f1'])}"
+                    for item in r["by_support"]
                 ]
                 for r in result["runs"]
             ],

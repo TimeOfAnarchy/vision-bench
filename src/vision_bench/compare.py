@@ -9,7 +9,7 @@ from .artifacts import load_results
 from .bootstrap import CONFIDENCE, resample_weights, summarize, weighted_metrics
 from .errors import BenchmarkError
 from .io import content_hash, read_object
-from .metrics import evaluate_columns
+from .metrics import evaluate_columns, support_strata
 from .per_image import per_image_counts, per_image_summary, sample_metrics
 from .sweep import threshold_analysis
 
@@ -31,50 +31,66 @@ def compare_runs(
         return _compare(paths, runs, bootstrap_resamples, bootstrap_seed)
 
 
-def _compare(paths: list[Path], runs: list[tuple], resamples: int, seed: int) -> dict:
+def paired_rows(runs: list[tuple]) -> np.ndarray:
+    """Rows that every run completed, after checking that all runs share one dataset selection."""
     fingerprint = runs[0][0]["dataset"]["fingerprint"]
     if any(run[0]["dataset"]["fingerprint"] != fingerprint for run in runs):
         raise BenchmarkError("Runs use different dataset subsets, annotation versions, or ordering.")
     paired = np.logical_and.reduce([run[4] for run in runs])
     if not paired.any():
         raise BenchmarkError("No shared successful samples.")
-    rows = np.flatnonzero(paired)
+    return np.flatnonzero(paired)
+
+
+def category_selection(
+    runs: list[tuple], configs: list[dict], category: str
+) -> tuple[list[str], list[tuple[np.ndarray, list[int], float]], dict | None]:
+    """Common category vocabulary and per-run (scores, columns, threshold), or why it is excluded."""
+    missing = [config["id"] for config in configs if category not in config["thresholds"]]
+    if missing:
+        return [], [], {"reason": "missing_threshold", "profiles": missing}
+    vocabularies = [
+        {
+            label
+            for label, kind in zip(run[2]["labels"], run[2]["categories"], strict=True)
+            if kind == category and label is not None
+        }
+        for run in runs
+    ]
+    labels = sorted(set.intersection(*vocabularies))
+    if not labels:
+        return [], [], {"reason": "no_common_vocabulary"}
+    selections = []
+    for config, run in zip(configs, runs, strict=True):
+        lookup = {label: index for index, label in enumerate(run[2]["labels"])}
+        selections.append((run[3], [lookup[label] for label in labels], config["thresholds"][category]))
+    return labels, selections, None
+
+
+def _compare(paths: list[Path], runs: list[tuple], resamples: int, seed: int) -> dict:
+    rows = paired_rows(runs)
     weights = resample_weights(len(rows), resamples, seed) if resamples else None
     categories, excluded_categories = {}, {}
     configs = [read_object(path / "profile.json") for path in paths]
     for category in sorted(runs[0][1][0]["tags"]):
-        missing = [config["id"] for config in configs if category not in config["thresholds"]]
-        if missing:
-            excluded_categories[category] = {"reason": "missing_threshold", "profiles": missing}
+        labels, selections, exclusion = category_selection(runs, configs, category)
+        if exclusion:
+            excluded_categories[category] = exclusion
             continue
-        vocabularies = [
-            {
-                label
-                for label, kind in zip(run[2]["labels"], run[2]["categories"], strict=True)
-                if kind == category and label is not None
-            }
-            for run in runs
-        ]
-        labels = sorted(set.intersection(*vocabularies))
-        if not labels:
-            excluded_categories[category] = {"reason": "no_common_vocabulary"}
-            continue
-        profiles, selections, image_counts = [], [], []
+        profiles, image_counts = [], []
         truth = [set(runs[0][1][row]["tags"][category]) for row in rows]
-        for profile, run in zip(configs, runs, strict=True):
-            lookup = {label: index for index, label in enumerate(run[2]["labels"])}
-            columns = [lookup[label] for label in labels]
-            threshold = profile["thresholds"][category]
-            selections.append((run[3], columns, threshold))
-            image_counts.append(per_image_counts(run[3], rows, columns, labels, truth, threshold))
+        for profile, run, (scores, columns, threshold) in zip(configs, runs, selections, strict=True):
+            image_counts.append(per_image_counts(scores, rows, columns, labels, truth, threshold))
+            metrics = evaluate_columns(scores, rows, columns, labels, truth, threshold)
             profiles.append(
                 {
                     "run_id": run[0]["run_id"],
                     "profile_id": profile["id"],
                     "successful": int(run[4].sum()),
                     "failed": int((~run[4]).sum()),
-                    "metrics": evaluate_columns(run[3], rows, columns, labels, truth, threshold),
-                    "threshold_analysis": threshold_analysis(run[3], rows, columns, labels, truth),
+                    "metrics": metrics,
+                    "by_support": support_strata(metrics["per_label"]),
+                    "threshold_analysis": threshold_analysis(scores, rows, columns, labels, truth),
                     "per_image": per_image_summary(image_counts[-1], threshold),
                 }
             )
@@ -98,9 +114,9 @@ def _compare(paths: list[Path], runs: list[tuple], resamples: int, seed: int) ->
         raise BenchmarkError("No category has both common vocabulary and thresholds for every model.")
     return {
         "schema_version": 1,
-        "dataset_fingerprint": fingerprint,
-        "attempted_per_model": len(paired),
-        "paired_successful": int(paired.sum()),
+        "dataset_fingerprint": runs[0][0]["dataset"]["fingerprint"],
+        "attempted_per_model": len(runs[0][4]),
+        "paired_successful": len(rows),
         "categories": categories,
         "excluded_categories": excluded_categories,
         "bootstrap": {
